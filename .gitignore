@@ -1,0 +1,11 @@
+# PlatformIO build and downloaded libs
+firmware/stick_switch/.pio/
+
+# Native test binary
+firmware/native_test/test_runner
+firmware/native_test/test_runner.exe
+
+# OS / editor
+.DS_Store
+*.swp
+*~

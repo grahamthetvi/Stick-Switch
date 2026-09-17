@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Stick-Switch calibrate</title>
+  <style>
+    body { font-family: sans-serif; max-width: 42rem; margin: 2rem auto; }
+    button, select { font-size: 1rem; margin: 0.2rem; }
+    pre { background: #111; color: #9f9; padding: 1rem; min-height: 12rem; overflow: auto; }
+  </style>
+</head>
+<body>
+  <h1>Stick-Switch serial calibrate</h1>
+  <p>Chrome/Edge only. Connect the ESP32 USB serial, then run TARE / CAL / SAVE. HID keys stay <code>1</code> / <code>2</code>.</p>
+  <p>
+    <button id="connect">Connect</button>
+    <select id="mode">
+      <option>MICRO</option>
+      <option>FSR</option>
+      <option>HALL</option>
+      <option>LOAD</option>
+      <option>BINARY</option>
+    </select>
+    <button data-cmd="TARE">TARE</button>
+    <button data-cmd="CAL START SOFT">CAL SOFT</button>
+    <button data-cmd="CAL START HARD">CAL HARD</button>
+    <button data-cmd="CAL STOP">CAL STOP</button>
+    <button data-cmd="DUMP">DUMP</button>
+    <button data-cmd="SAVE">SAVE</button>
+    <button data-cmd="PLOT 1">PLOT ON</button>
+    <button data-cmd="PLOT 0">PLOT OFF</button>
+  </p>
+  <pre id="log"></pre>
+  <script>
+    let port, writer;
+    const log = (t) => { const el = document.getElementById("log"); el.textContent += t + "\n"; el.scrollTop = el.scrollHeight; };
+    async function send(line) {
+      if (!writer) { log("not connected"); return; }
+      await writer.write(line + "\n");
+      log("> " + line);
+    }
+    document.getElementById("connect").onclick = async () => {
+      port = await navigator.serial.requestPort();
+      await port.open({ baudRate: 115200 });
+      writer = port.writable.getWriter();
+      const dec = new TextDecoderStream();
+      port.readable.pipeTo(dec.writable);
+      const reader = dec.readable.getReader();
+      log("connected");
+      (async () => {
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          if (value) log(value.trimEnd());
+        }
+      })();
+    };
+    document.getElementById("mode").onchange = (e) => send("MODE " + e.target.value);
+    for (const b of document.querySelectorAll("button[data-cmd]")) {
+      b.onclick = () => send(b.getAttribute("data-cmd"));
+    }
+  </script>
+</body>
+</html>
