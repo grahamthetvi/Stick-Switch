@@ -2,6 +2,14 @@
 
 #include <cstdint>
 
+enum class ModuleId : uint8_t {
+  Empty = 0,
+  Micro = 1,
+  Fsr = 2,
+  Hall = 3,
+  Load = 4,
+};
+
 // Soft->hard UPGRADE, never dual-fire, never mid-press downgrade.
 // Idle --soft--> Soft (press 1)
 // Soft --hard--> Hard (release 1, press 2)
@@ -136,6 +144,65 @@ inline bool analogActive(float value, bool currently, float on, float hyst) {
     return value >= (on - hyst);
   }
   return value >= on;
+}
+
+// 100k/100k divider from the cell. Approximate; ESP32 ADC is uncalibrated.
+inline int battMvFromAdc(int adc, int vref_mv = 3300, int full = 4095) {
+  if (adc < 0) {
+    return 0;
+  }
+  return static_cast<int>((static_cast<long>(adc) * vref_mv * 2) / full);
+}
+
+// 47k pull-up to 3V3 on the chassis; module resistor to GND.
+// MICRO 10k, FSR 22k, HALL 47k, LOAD 100k, empty = open.
+inline ModuleId decodeModuleId(int adc, int* ohms_out = nullptr, int rpu = 47000,
+                               int full = 4095) {
+  int ohms = -1;
+  if (adc < 1) {
+    ohms = 0;
+  } else if (adc >= full - 8) {
+    ohms = -1;
+  } else {
+    ohms = static_cast<int>((static_cast<long>(rpu) * adc) / (full - adc));
+  }
+  if (ohms_out != nullptr) {
+    *ohms_out = ohms;
+  }
+
+  if (adc >= 3600) {
+    return ModuleId::Empty;
+  }
+  if (ohms < 16000) {
+    return ModuleId::Micro;
+  }
+  if (ohms < 34500) {
+    return ModuleId::Fsr;
+  }
+  if (ohms < 73500) {
+    return ModuleId::Hall;
+  }
+  return ModuleId::Load;
+}
+
+inline const char* moduleIdName(ModuleId id) {
+  switch (id) {
+    case ModuleId::Empty:
+      return "EMPTY";
+    case ModuleId::Micro:
+      return "MICRO";
+    case ModuleId::Fsr:
+      return "FSR";
+    case ModuleId::Hall:
+      return "HALL";
+    case ModuleId::Load:
+      return "LOAD";
+    default: {
+      const ModuleId unused = id;
+      (void)unused;
+      return "EMPTY";
+    }
+  }
 }
 
 // 5-point LUT: adc[i] -> mm[i], both strictly increasing after invert.

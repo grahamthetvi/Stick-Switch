@@ -104,6 +104,91 @@ static void test_boxcar() {
   CHECK(v > 90, "converges toward step");
 }
 
+static void test_batt_divider() {
+  CHECK(battMvFromAdc(0) == 0, "zero");
+  const int full = battMvFromAdc(4095);
+  CHECK(full >= 6590 && full <= 6610, "full scale ~2 * 3.3 V");
+  const int mid = battMvFromAdc(2048);
+  CHECK(mid >= 3290 && mid <= 3310, "mid ~3.3 V cell");
+}
+
+static int adcFromDivider(int r_gnd, int rpu = 47000, int full = 4095) {
+  return static_cast<int>((static_cast<long>(full) * r_gnd) / (rpu + r_gnd));
+}
+
+static void test_module_id() {
+  int ohms = 0;
+  CHECK(decodeModuleId(4095, &ohms) == ModuleId::Empty, "open");
+  CHECK(ohms == -1, "open ohms");
+  CHECK(decodeModuleId(adcFromDivider(10000), &ohms) == ModuleId::Micro, "10k MICRO");
+  CHECK(ohms > 8000 && ohms < 12000, "10k ohms");
+  CHECK(decodeModuleId(adcFromDivider(22000), &ohms) == ModuleId::Fsr, "22k FSR");
+  CHECK(decodeModuleId(adcFromDivider(47000), &ohms) == ModuleId::Hall, "47k HALL");
+  CHECK(decodeModuleId(adcFromDivider(100000), &ohms) == ModuleId::Load, "100k LOAD");
+  CHECK(decodeModuleId(0, &ohms) == ModuleId::Micro, "shorted reads MICRO");
+}
+
+static void test_analog_machine_together() {
+  const float on_s = 10.0f;
+  const float on_h = 20.0f;
+  const float hyst = 2.0f;
+
+  auto drive = [](StickMachine& m, bool& soft_held, bool& hard_held, float v, float on_s,
+                  float on_h, float hyst) {
+    soft_held = analogActive(v, soft_held, on_s, hyst);
+    hard_held = analogActive(v, hard_held, on_h, hyst);
+    return m.updateDual(soft_held, hard_held);
+  };
+
+  StickMachine m;
+  bool soft_held = false;
+  bool hard_held = false;
+
+  HidAction a = drive(m, soft_held, hard_held, 0, on_s, on_h, hyst);
+  CHECK(m.level() == StickLevel::Idle, "rest idle");
+  CHECK(a.empty(), "rest no hid");
+
+  a = drive(m, soft_held, hard_held, 10, on_s, on_h, hyst);
+  CHECK(m.level() == StickLevel::Soft, "rest->soft");
+  CHECK(a.press_soft && !a.press_hard, "press 1 only");
+
+  a = drive(m, soft_held, hard_held, 20, on_s, on_h, hyst);
+  CHECK(m.level() == StickLevel::Hard, "soft->hard upgrade");
+  CHECK(a.release_soft && a.press_hard && !a.press_soft, "release 1 press 2");
+
+  a = drive(m, soft_held, hard_held, 18.5f, on_s, on_h, hyst);
+  CHECK(hard_held, "hard analog still held");
+  CHECK(m.level() == StickLevel::Hard, "ease off hard stays Hard");
+  CHECK(a.empty(), "no extra HID on ease");
+
+  a = drive(m, soft_held, hard_held, 0, on_s, on_h, hyst);
+  CHECK(m.level() == StickLevel::Idle, "full release");
+  CHECK(a.release_hard && !a.release_soft, "release 2 only");
+
+  StickMachine slam;
+  bool s2 = false;
+  bool h2 = false;
+  a = drive(slam, s2, h2, 25, on_s, on_h, hyst);
+  CHECK(slam.level() == StickLevel::Hard, "slam goes hard");
+  CHECK(a.press_hard && !a.press_soft, "slam skips soft");
+
+  StickMachine chatter;
+  bool s3 = false;
+  bool h3 = false;
+  drive(chatter, s3, h3, 10, on_s, on_h, hyst);
+  CHECK(chatter.level() == StickLevel::Soft, "at soft on");
+  a = drive(chatter, s3, h3, 8.5f, on_s, on_h, hyst);
+  CHECK(s3, "hyst holds analog soft");
+  CHECK(chatter.level() == StickLevel::Soft, "hyst does not drop");
+  CHECK(a.empty(), "hyst does not chatter");
+  a = drive(chatter, s3, h3, 10.2f, on_s, on_h, hyst);
+  CHECK(chatter.level() == StickLevel::Soft, "still soft");
+  CHECK(a.empty(), "no extra press");
+  a = drive(chatter, s3, h3, 7.5f, on_s, on_h, hyst);
+  CHECK(chatter.level() == StickLevel::Idle, "below hyst releases");
+  CHECK(a.release_soft, "release 1 after hyst drop");
+}
+
 int main() {
   test_upgrade_no_dual_fire();
   test_no_downgrade();
@@ -115,6 +200,9 @@ int main() {
   test_hysteresis();
   test_lut();
   test_boxcar();
+  test_batt_divider();
+  test_module_id();
+  test_analog_machine_together();
   if (g_fails) {
     std::fprintf(stderr, "%d failed\n", g_fails);
     return 1;

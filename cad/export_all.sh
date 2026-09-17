@@ -3,6 +3,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 OUT="$ROOT/stl"
 mkdir -p "$OUT"
+# Printable STLs. kit_preview is an exploded assembly (not exported).
+# First classroom print: base_chassis cover_slot rocker_arm stick_collar
+#   grip_sleeve bellows tpu_foot mod3_switch_plate [mod3_ramp_cam].
 PARTS=(
   base_chassis cover_slot rocker_arm stick_collar
   grip_sleeve bellows tpu_foot magnet_plug

@@ -4,14 +4,21 @@
   <meta charset="utf-8" />
   <title>Stick-Switch calibrate</title>
   <style>
-    body { font-family: sans-serif; max-width: 42rem; margin: 2rem auto; }
+    body { font-family: sans-serif; max-width: 46rem; margin: 2rem auto; }
     button, select { font-size: 1rem; margin: 0.2rem; }
     pre { background: #111; color: #9f9; padding: 1rem; min-height: 12rem; overflow: auto; }
+    #readout { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.6rem; margin: 1rem 0; }
+    #readout div { background: #f3f3f3; padding: 0.6rem 0.8rem; }
+    #readout span { display: block; font-size: 0.8rem; color: #555; }
+    #readout b { font-size: 1.15rem; }
+    .wizard { border: 1px solid #ccc; padding: 0.8rem 1rem; margin: 1rem 0; }
+    .wizard ol { margin: 0.4rem 0 0.8rem; }
+    .step-on { font-weight: 700; }
   </style>
 </head>
 <body>
   <h1>Stick-Switch serial calibrate</h1>
-  <p>Chrome/Edge only. Connect the ESP32 USB serial, then run TARE / CAL / SAVE. HID keys stay <code>1</code> / <code>2</code>.</p>
+  <p>Chrome/Edge only. Calibration auto-saves to NVS; <code>SAVE</code> is only a confirmation dump. HID keys stay <code>1</code> / <code>2</code>.</p>
   <p>
     <button id="connect">Connect</button>
     <select id="mode">
@@ -30,15 +37,83 @@
     <button data-cmd="PLOT 1">PLOT ON</button>
     <button data-cmd="PLOT 0">PLOT OFF</button>
   </p>
+  <div id="readout">
+    <div><span>mode</span><b id="r-mode">—</b></div>
+    <div><span>level</span><b id="r-level">—</b></div>
+    <div><span>batt_mv</span><b id="r-batt">—</b></div>
+    <div><span>module_id</span><b id="r-id">—</b></div>
+  </div>
+  <div class="wizard">
+    <strong>Wizard</strong> (analog modules: FSR / HALL / LOAD)
+    <ol>
+      <li id="w1">Rest the stick, then TARE.</li>
+      <li id="w2">Hold the student’s <em>soft</em> press, start CAL SOFT, then stop.</li>
+      <li id="w3">Hold the student’s <em>hard</em> press, start CAL HARD, then stop.</li>
+    </ol>
+    <button type="button" id="wiz">Start: Rest / TARE</button>
+  </div>
   <pre id="log"></pre>
   <script>
     let port, writer;
+    let wiz = 0;
     const log = (t) => { const el = document.getElementById("log"); el.textContent += t + "\n"; el.scrollTop = el.scrollHeight; };
+    const setText = (id, v) => { document.getElementById(id).textContent = v; };
+    const levels = ["Idle", "Soft", "Hard"];
+    function applyDump(obj) {
+      if (obj.mode != null) setText("r-mode", obj.mode);
+      if (obj.level != null) setText("r-level", levels[obj.level] || String(obj.level));
+      if (obj.batt_mv != null) setText("r-batt", String(obj.batt_mv));
+      if (obj.module_id != null) {
+        const ohms = obj.module_ohms != null ? " (" + obj.module_ohms + "Ω)" : "";
+        setText("r-id", obj.module_id + ohms);
+      }
+    }
+    function ingest(chunk) {
+      for (const line of chunk.split(/\r?\n/)) {
+        const t = line.trim();
+        if (!t) continue;
+        log(t);
+        const start = t.indexOf("{");
+        if (start < 0) continue;
+        try { applyDump(JSON.parse(t.slice(start))); } catch (e) { /* live plot lines */ }
+      }
+    }
     async function send(line) {
       if (!writer) { log("not connected"); return; }
       await writer.write(line + "\n");
       log("> " + line);
     }
+    function markWizard() {
+      for (const id of ["w1", "w2", "w3"]) document.getElementById(id).classList.remove("step-on");
+      const labels = [
+        "Start: Rest / TARE",
+        "Holding soft? CAL SOFT",
+        "Still holding soft? CAL STOP",
+        "Holding hard? CAL HARD",
+        "Still holding hard? CAL STOP",
+        "Done — DUMP (auto-saved)"
+      ];
+      document.getElementById("wiz").textContent = labels[wiz] || labels[5];
+      if (wiz >= 1 && wiz <= 2) document.getElementById("w1").classList.add("step-on");
+      else if (wiz >= 3 && wiz <= 4) document.getElementById("w2").classList.add("step-on");
+      else if (wiz >= 5) document.getElementById("w3").classList.add("step-on");
+    }
+    document.getElementById("wiz").onclick = async () => {
+      if (!writer) { log("not connected"); return; }
+      if (wiz === 0) {
+        await send("TARE");
+        wiz = 2;
+        markWizard();
+        return;
+      }
+      if (wiz === 2) { await send("CAL START SOFT"); wiz = 3; markWizard(); return; }
+      if (wiz === 3) { await send("CAL STOP"); wiz = 4; markWizard(); return; }
+      if (wiz === 4) { await send("CAL START HARD"); wiz = 5; markWizard(); return; }
+      await send("CAL STOP");
+      await send("DUMP");
+      wiz = 0;
+      markWizard();
+    };
     document.getElementById("connect").onclick = async () => {
       port = await navigator.serial.requestPort();
       await port.open({ baudRate: 115200 });
@@ -51,7 +126,7 @@
         for (;;) {
           const { value, done } = await reader.read();
           if (done) break;
-          if (value) log(value.trimEnd());
+          if (value) ingest(value);
         }
       })();
     };

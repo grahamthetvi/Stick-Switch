@@ -34,3 +34,10 @@ constexpr uint32_t kLoadSlowTareMs = 3000;
 constexpr uint8_t kHallLutPoints = 5;
 constexpr uint16_t kCalSamples = 5;
 constexpr uint32_t kTareWindowMs = 1000;
+
+constexpr int kBattLowMv = 3400;
+constexpr int kAdcVrefMv = 3300;
+constexpr int kAdcFullScale = 4095;
+constexpr int kModuleIdPullupOhms = 47000;
+constexpr uint32_t kBattPollMs = 500;
+constexpr uint32_t kBattBlinkMs = 700;

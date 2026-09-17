@@ -39,6 +39,10 @@ bool analog_soft_held = false;
 bool analog_hard_held = false;
 char serial_buf[96];
 uint8_t serial_len = 0;
+int last_batt_mv = 0;
+int last_id_ohms = -1;
+ModuleId last_module_id = ModuleId::Empty;
+uint32_t last_batt_ms = 0;
 
 const char* modeName(StickMode m) {
   switch (m) {
@@ -79,6 +83,26 @@ StickMode parseMode(const String& s) {
   return settings.mode;
 }
 
+StickMode modeFromModuleId(ModuleId id) {
+  switch (id) {
+    case ModuleId::Micro:
+      return StickMode::Micro;
+    case ModuleId::Fsr:
+      return StickMode::Fsr;
+    case ModuleId::Hall:
+      return StickMode::Hall;
+    case ModuleId::Load:
+      return StickMode::Load;
+    case ModuleId::Empty:
+      return settings.mode;
+    default: {
+      const ModuleId unused = id;
+      (void)unused;
+      return StickMode::Micro;
+    }
+  }
+}
+
 void saveSettings() {
   prefs.begin("stick", false);
   prefs.putUChar("mode", static_cast<uint8_t>(settings.mode));
@@ -100,6 +124,13 @@ void saveSettings() {
   prefs.putFloat("ld_s", settings.load_soft_gf);
   prefs.putFloat("ld_h", settings.load_hard_gf);
   prefs.end();
+}
+
+void persist(bool announce) {
+  saveSettings();
+  if (announce) {
+    Serial.println(F("{\"saved\":true}"));
+  }
 }
 
 void loadSettings() {
@@ -179,6 +210,33 @@ int analogReadFilt() {
   return static_cast<int>(v);
 }
 
+int readBattMv() {
+  analogSetPinAttenuation(PIN_ADC_BATT, ADC_11db);
+  int acc = 0;
+  for (int i = 0; i < 8; ++i) {
+    acc += analogRead(PIN_ADC_BATT);
+  }
+  return battMvFromAdc(acc / 8, kAdcVrefMv, kAdcFullScale);
+}
+
+void readModuleId() {
+  analogSetPinAttenuation(PIN_MODULE_ID, ADC_11db);
+  int acc = 0;
+  for (int i = 0; i < 8; ++i) {
+    acc += analogRead(PIN_MODULE_ID);
+  }
+  last_module_id = decodeModuleId(acc / 8, &last_id_ohms, kModuleIdPullupOhms, kAdcFullScale);
+}
+
+void maybeLowBattLeds(uint32_t now, bool active) {
+  if (active || last_batt_mv == 0 || last_batt_mv >= kBattLowMv) {
+    return;
+  }
+  const bool on = ((now / kBattBlinkMs) % 2) == 0;
+  digitalWrite(PIN_LED_SOFT, on ? HIGH : LOW);
+  digitalWrite(PIN_LED_HARD, on ? HIGH : LOW);
+}
+
 float hallMm(int adc) {
   float v = static_cast<float>(adc);
   if (settings.invert_analog) {
@@ -205,6 +263,12 @@ void dumpJson() {
   Serial.print(modeName(settings.mode));
   Serial.print("\",\"level\":");
   Serial.print(static_cast<int>(machine.level()));
+  Serial.print(",\"batt_mv\":");
+  Serial.print(last_batt_mv);
+  Serial.print(",\"module_id\":\"");
+  Serial.print(moduleIdName(last_module_id));
+  Serial.print("\",\"module_ohms\":");
+  Serial.print(last_id_ohms);
   Serial.print(",\"tare_adc\":");
   Serial.print(settings.tare_adc);
   Serial.print(",\"fsr_soft\":");
@@ -295,6 +359,7 @@ void finishCal() {
   }
   cal_collecting = false;
   cal_count = 0;
+  persist(false);
   Serial.print(F("{\"cal\":\"ok\",\"mean\":"));
   Serial.print(mean);
   Serial.println("}");
@@ -310,8 +375,7 @@ void handleLine(const String& line) {
     return;
   }
   if (line == "SAVE") {
-    saveSettings();
-    Serial.println(F("{\"saved\":true}"));
+    persist(true);
     return;
   }
   if (line == "TARE") {
@@ -338,6 +402,7 @@ void handleLine(const String& line) {
       adc_filt.set(static_cast<float>(settings.tare_adc));
     }
     Serial.println(F("{\"tare\":true}"));
+    persist(false);
     dumpJson();
     return;
   }
@@ -346,6 +411,7 @@ void handleLine(const String& line) {
     machine.reset();
     analog_soft_held = false;
     analog_hard_held = false;
+    persist(false);
     Serial.print(F("{\"mode\":\""));
     Serial.print(modeName(settings.mode));
     Serial.println("\"}");
@@ -357,6 +423,7 @@ void handleLine(const String& line) {
   }
   if (line.startsWith("SCALE ")) {
     settings.load_scale = line.substring(6).toFloat();
+    persist(false);
     return;
   }
   if (line.startsWith("INVERT ")) {
@@ -372,17 +439,20 @@ void handleLine(const String& line) {
       } else if (which == "LD") {
         settings.invert_load = v;
       }
+      persist(false);
     }
     return;
   }
   if (line.startsWith("KEYS ") && line.length() >= 7) {
     settings.key_soft = line.charAt(5);
     settings.key_hard = line.charAt(6);
+    persist(false);
     return;
   }
   if (line.startsWith("BINARY_KEY ")) {
     const String k = line.substring(11);
     settings.key_binary = (k == "SPACE") ? ' ' : k.charAt(0);
+    persist(false);
     return;
   }
   if (line.startsWith("LUT ")) {
@@ -404,6 +474,7 @@ void handleLine(const String& line) {
       settings.hall_mm[idx] = mm;
       idx++;
     }
+    persist(false);
     Serial.println(F("{\"lut\":true}"));
     return;
   }
@@ -536,8 +607,15 @@ void setup() {
   pinMode(PIN_JACK_OUT, OUTPUT);
   analogReadResolution(12);
   analogSetPinAttenuation(PIN_ADC_SENSOR, ADC_11db);
+  analogSetPinAttenuation(PIN_ADC_BATT, ADC_11db);
+  analogSetPinAttenuation(PIN_MODULE_ID, ADC_11db);
 
   loadSettings();
+  last_batt_mv = readBattMv();
+  readModuleId();
+  if (last_module_id != ModuleId::Empty) {
+    settings.mode = modeFromModuleId(last_module_id);
+  }
   Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL);
   nau_ok = nau.begin();
   if (nau_ok) {
@@ -555,6 +633,11 @@ void setup() {
 void loop() {
   const uint32_t now = millis();
   pollSerial();
+
+  if (now - last_batt_ms >= kBattPollMs) {
+    last_batt_ms = now;
+    last_batt_mv = readBattMv();
+  }
 
   const bool tare_btn = deb_tare.update(digitalRead(PIN_BTN_TARE) == LOW, now);
   static bool tare_was = false;
@@ -595,6 +678,7 @@ void loop() {
   }
   applyHid(action);
   setJack(jack);
+  maybeLowBattLeds(now, jack);
 
   static uint32_t last_plot = 0;
   if (plot && now - last_plot > 50) {

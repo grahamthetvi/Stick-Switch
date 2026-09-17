@@ -1,7 +1,7 @@
 // Shared helpers for Stick-Switch printable parts.
 // Units: millimetres. External edges aim for R >= 2 mm.
 
-$fn = 48;
+$fn = 64;
 
 module rounded_box(size, r = 2, center = false) {
   x = size[0];
@@ -53,10 +53,20 @@ module m4_slot(length = 20, h = 12) {
 }
 
 module bearing_623zz_seat(depth = 4.2) {
-  cylinder(h = depth, d = 10.1);
+  cylinder(h = depth, d = 10.1, $fn = 72);
 }
 
 module through(h, d) {
   translate([0, 0, -0.2])
     cylinder(h = h + 0.4, d = d);
+}
+
+// Two 0.9 mm holes, 7.62 mm pitch, for the module ID resistor (TH 1/4 W).
+// Solder between header pin 8 (ID) and pin 2 (GND).
+module module_id_resistor_cut() {
+  translate([4.0, 0, -0.2]) {
+    cylinder(h = 6, d = 0.9);
+    translate([0, -7.62, 0])
+      cylinder(h = 6, d = 0.9);
+  }
 }

@@ -15,6 +15,8 @@ constexpr int PIN_BTN_CAL = 23;
 constexpr int PIN_LED_SOFT = 25;
 constexpr int PIN_LED_HARD = 26;
 constexpr int PIN_JACK_OUT = 27;  // 2N7000 gate for analog modules
+constexpr int PIN_ADC_BATT = 34;  // ADC1_CH6, 100k/100k from cell (before boost)
+constexpr int PIN_MODULE_ID = 35;  // ADC1_CH7, header pin 8; 47k pull-up on chassis
 
 // 8-pin module header, rear of bay, pin 1 = 3V3:
-// 1 3V3 | 2 GND | 3 SOFT | 4 HARD | 5 ADC | 6 SDA | 7 SCL | 8 ID (unused; mode is NVS)
+// 1 3V3 | 2 GND | 3 SOFT | 4 HARD | 5 ADC | 6 SDA | 7 SCL | 8 ID (GPIO35)
