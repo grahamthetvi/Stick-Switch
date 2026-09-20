@@ -3,9 +3,12 @@
 #include <Wire.h>
 #include <Adafruit_NAU7802.h>
 
+#include <NimBLEDevice.h>
 #include <BleKeyboard.h>
+#include <esp_mac.h>
 
 #include "config.h"
+#include "hid_profile.h"
 #include "pins.h"
 #include "settings.h"
 #include "stick_level.h"
@@ -13,18 +16,22 @@
 namespace {
 
 Preferences prefs;
-BleKeyboard ble(kBleName, "Stick-Switch", 100);
+char ble_name[20] = "Stick-Switch";
+BleKeyboard ble(kBleName, kBleManufacturer, 100);
 Adafruit_NAU7802 nau;
 StickMachine machine;
 StickSettings settings;
+HidKeyset keys;
 
 Debounce deb_soft(kDebounceMs);
 Debounce deb_hard(kDebounceMs);
 Debounce deb_aph(kDebounceMs);
 Debounce deb_tare(kDebounceMs);
 Debounce deb_cal(kDebounceMs);
+Debounce deb_boot(kDebounceMs);
 BoxcarFilter adc_filt(static_cast<float>(kBoxcar));
 BoxcarFilter load_filt(static_cast<float>(kBoxcar));
+BoxcarFilter grip_filt(4.0f);
 
 bool nau_ok = false;
 bool plot = false;
@@ -40,9 +47,37 @@ bool analog_hard_held = false;
 char serial_buf[96];
 uint8_t serial_len = 0;
 int last_batt_mv = 0;
+int last_batt_pct = -1;
 int last_id_ohms = -1;
 ModuleId last_module_id = ModuleId::Empty;
 uint32_t last_batt_ms = 0;
+bool last_ble_connected = false;
+bool last_batt_low = false;
+uint16_t last_grip_raw = 0;
+bool last_grip = false;
+
+bool sim_soft = false;
+bool sim_hard = false;
+uint32_t sim_until_ms = 0;
+
+bool boot_was = false;
+bool boot_held_fired = false;
+uint8_t boot_taps = 0;
+uint32_t boot_down_ms = 0;
+uint32_t boot_wait_until = 0;
+
+void handleLine(const String& line);
+
+struct Earcon {
+  uint16_t freq;
+  uint16_t ms;
+};
+
+Earcon earcon_q[6];
+uint8_t earcon_n = 0;
+uint8_t earcon_i = 0;
+uint32_t earcon_until = 0;
+bool earcon_on = false;
 
 const char* modeName(StickMode m) {
   switch (m) {
@@ -103,9 +138,15 @@ StickMode modeFromModuleId(ModuleId id) {
   }
 }
 
+void refreshKeys() {
+  keys = keysetFor(settings.profile, settings);
+}
+
 void saveSettings() {
   prefs.begin("stick", false);
   prefs.putUChar("mode", static_cast<uint8_t>(settings.mode));
+  prefs.putUChar("prof", static_cast<uint8_t>(settings.profile));
+  prefs.putUChar("pack", static_cast<uint8_t>(settings.pack));
   prefs.putBool("inv_sw", settings.invert_switches);
   prefs.putBool("inv_an", settings.invert_analog);
   prefs.putBool("inv_ld", settings.invert_load);
@@ -123,6 +164,7 @@ void saveSettings() {
   prefs.putFloat("ld_sc", settings.load_scale);
   prefs.putFloat("ld_s", settings.load_soft_gf);
   prefs.putFloat("ld_h", settings.load_hard_gf);
+  prefs.putUShort("gth", settings.grip_thresh);
   prefs.end();
 }
 
@@ -136,6 +178,8 @@ void persist(bool announce) {
 void loadSettings() {
   prefs.begin("stick", true);
   settings.mode = static_cast<StickMode>(prefs.getUChar("mode", 0));
+  settings.profile = static_cast<HidProfile>(prefs.getUChar("prof", 0));
+  settings.pack = static_cast<PackType>(prefs.getUChar("pack", 0));
   settings.invert_switches = prefs.getBool("inv_sw", false);
   settings.invert_analog = prefs.getBool("inv_an", false);
   settings.invert_load = prefs.getBool("inv_ld", false);
@@ -153,6 +197,7 @@ void loadSettings() {
   settings.load_scale = prefs.getFloat("ld_sc", 1.0f);
   settings.load_soft_gf = prefs.getFloat("ld_s", kLoadSoftGf);
   settings.load_hard_gf = prefs.getFloat("ld_h", kLoadHardGf);
+  settings.grip_thresh = prefs.getUShort("gth", kGripThreshDefault);
   prefs.end();
   if (settings.hall_adc[kHallLutPoints - 1] <= settings.hall_adc[0]) {
     settings.hall_adc[0] = 1800;
@@ -166,6 +211,105 @@ void loadSettings() {
     settings.hall_mm[3] = 9;
     settings.hall_mm[4] = 12;
   }
+  if (settings.grip_thresh == 0) {
+    settings.grip_thresh = kGripThreshDefault;
+  }
+  refreshKeys();
+}
+
+void enqueueTone(uint16_t freq, uint16_t ms) {
+  if (earcon_n >= 6) {
+    return;
+  }
+  earcon_q[earcon_n].freq = freq;
+  earcon_q[earcon_n].ms = ms;
+  earcon_n++;
+}
+
+void earconStartup() {
+  enqueueTone(880, 80);
+  enqueueTone(0, 40);
+  enqueueTone(1175, 80);
+}
+
+void earconPaired() {
+  enqueueTone(1200, 60);
+  enqueueTone(0, 30);
+  enqueueTone(1600, 80);
+}
+
+void earconClick() {
+  enqueueTone(2000, 18);
+}
+
+void earconLowBatt() {
+  enqueueTone(400, 120);
+  enqueueTone(0, 80);
+  enqueueTone(400, 120);
+}
+
+void pollBuzzer(uint32_t now) {
+  if (!earcon_on) {
+    if (earcon_i >= earcon_n) {
+      earcon_n = 0;
+      earcon_i = 0;
+      return;
+    }
+    const Earcon& t = earcon_q[earcon_i];
+    if (t.freq > 0) {
+      ledcWriteTone(kBuzzerChannel, t.freq);
+    } else {
+      ledcWriteTone(kBuzzerChannel, 0);
+    }
+    earcon_until = now + t.ms;
+    earcon_on = true;
+    return;
+  }
+  if (now >= earcon_until) {
+    ledcWriteTone(kBuzzerChannel, 0);
+    earcon_on = false;
+    earcon_i++;
+  }
+}
+
+void hidPress(const HidKey& k) {
+  switch (k.kind) {
+    case HidKeyKind::Keyboard:
+      ble.press(k.kbd);
+      break;
+    case HidKeyKind::Media: {
+      MediaKeyReport r;
+      r[0] = k.media0;
+      r[1] = k.media1;
+      ble.press(r);
+      break;
+    }
+    default: {
+      const HidKeyKind unused = k.kind;
+      (void)unused;
+      break;
+    }
+  }
+}
+
+void hidRelease(const HidKey& k) {
+  switch (k.kind) {
+    case HidKeyKind::Keyboard:
+      ble.release(k.kbd);
+      break;
+    case HidKeyKind::Media: {
+      MediaKeyReport r;
+      r[0] = k.media0;
+      r[1] = k.media1;
+      ble.release(r);
+      break;
+    }
+    default: {
+      const HidKeyKind unused = k.kind;
+      (void)unused;
+      break;
+    }
+  }
 }
 
 void applyHid(const HidAction& a) {
@@ -173,22 +317,25 @@ void applyHid(const HidAction& a) {
     return;
   }
   if (a.release_soft) {
-    ble.release(settings.key_soft);
+    hidRelease(keys.soft);
   }
   if (a.release_hard) {
-    ble.release(settings.key_hard);
+    hidRelease(keys.hard);
   }
   if (a.release_binary) {
-    ble.release(settings.key_binary);
+    hidRelease(keys.binary);
   }
   if (a.press_soft) {
-    ble.press(settings.key_soft);
+    hidPress(keys.soft);
   }
   if (a.press_hard) {
-    ble.press(settings.key_hard);
+    hidPress(keys.hard);
   }
   if (a.press_binary) {
-    ble.press(settings.key_binary);
+    hidPress(keys.binary);
+  }
+  if (a.press_soft || a.press_hard || a.press_binary) {
+    earconClick();
   }
 }
 
@@ -228,13 +375,31 @@ void readModuleId() {
   last_module_id = decodeModuleId(acc / 8, &last_id_ohms, kModuleIdPullupOhms, kAdcFullScale);
 }
 
+void pollGrip() {
+  last_grip_raw = static_cast<uint16_t>(grip_filt.push(static_cast<float>(touchRead(PIN_TOUCH_GRIP))));
+  last_grip = gripHolding(last_grip_raw, settings.grip_thresh);
+  digitalWrite(PIN_LED_GRIP, last_grip ? HIGH : LOW);
+}
+
 void maybeLowBattLeds(uint32_t now, bool active) {
-  if (active || last_batt_mv == 0 || last_batt_mv >= kBattLowMv) {
+  if (active || last_batt_mv == 0 || !battIsLow(last_batt_mv, settings.pack)) {
     return;
   }
   const bool on = ((now / kBattBlinkMs) % 2) == 0;
   digitalWrite(PIN_LED_SOFT, on ? HIGH : LOW);
   digitalWrite(PIN_LED_HARD, on ? HIGH : LOW);
+}
+
+void publishBattery(bool force) {
+  const int pct = battPctFromMv(last_batt_mv, settings.pack);
+  if (!ble.isConnected()) {
+    last_batt_pct = -1;
+    return;
+  }
+  if (force || pct != last_batt_pct) {
+    last_batt_pct = pct;
+    ble.setBatteryLevel(static_cast<uint8_t>(pct));
+  }
 }
 
 float hallMm(int adc) {
@@ -258,13 +423,51 @@ float loadGrams() {
   return g;
 }
 
+void printKeyJson(const HidKey& k) {
+  if (k.kind == HidKeyKind::Media) {
+    Serial.print("\"M");
+    Serial.print(k.media0);
+    if (k.media1) {
+      Serial.print(",");
+      Serial.print(k.media1);
+    }
+    Serial.print("\"");
+    return;
+  }
+  if (k.kbd == ' ') {
+    Serial.print("\"SPACE\"");
+    return;
+  }
+  if (k.kbd >= 32 && k.kbd < 127) {
+    Serial.print("\"");
+    Serial.print(static_cast<char>(k.kbd));
+    Serial.print("\"");
+    return;
+  }
+  Serial.print(k.kbd);
+}
+
 void dumpJson() {
   Serial.print("{\"mode\":\"");
   Serial.print(modeName(settings.mode));
+  Serial.print("\",\"profile\":\"");
+  Serial.print(profileName(settings.profile));
+  Serial.print("\",\"ble_name\":\"");
+  Serial.print(ble_name);
   Serial.print("\",\"level\":");
   Serial.print(static_cast<int>(machine.level()));
   Serial.print(",\"batt_mv\":");
   Serial.print(last_batt_mv);
+  Serial.print(",\"batt_pct\":");
+  Serial.print(battPctFromMv(last_batt_mv, settings.pack));
+  Serial.print(",\"pack\":");
+  Serial.print(packCells(settings.pack));
+  Serial.print(",\"grip\":");
+  Serial.print(last_grip ? "true" : "false");
+  Serial.print(",\"grip_raw\":");
+  Serial.print(last_grip_raw);
+  Serial.print(",\"grip_thresh\":");
+  Serial.print(settings.grip_thresh);
   Serial.print(",\"module_id\":\"");
   Serial.print(moduleIdName(last_module_id));
   Serial.print("\",\"module_ohms\":");
@@ -287,17 +490,13 @@ void dumpJson() {
   Serial.print(settings.load_soft_gf);
   Serial.print(",\"load_hard_gf\":");
   Serial.print(settings.load_hard_gf);
-  Serial.print(",\"keys\":[\"");
-  Serial.print(settings.key_soft);
-  Serial.print("\",\"");
-  Serial.print(settings.key_hard);
-  Serial.print("\",\"");
-  if (settings.key_binary == ' ') {
-    Serial.print("SPACE");
-  } else {
-    Serial.print(settings.key_binary);
-  }
-  Serial.print("\"],\"hall_lut\":[");
+  Serial.print(",\"keys\":[");
+  printKeyJson(keys.soft);
+  Serial.print(",");
+  printKeyJson(keys.hard);
+  Serial.print(",");
+  printKeyJson(keys.binary);
+  Serial.print("],\"hall_lut\":[");
   for (uint8_t i = 0; i < kHallLutPoints; ++i) {
     if (i) {
       Serial.print(",");
@@ -313,6 +512,8 @@ void dumpJson() {
 
 void help() {
   Serial.println(F("MODE MICRO|FSR|HALL|LOAD|BINARY"));
+  Serial.println(F("PROFILE IPADOS|ANDROID|FUNCTION|MEDIA|CUSTOM"));
+  Serial.println(F("PACK 2|3"));
   Serial.println(F("TARE"));
   Serial.println(F("CAL START SOFT|HARD"));
   Serial.println(F("CAL STOP"));
@@ -321,6 +522,8 @@ void help() {
   Serial.println(F("INVERT SW|AN|LD 0|1"));
   Serial.println(F("KEYS <soft><hard>   example: KEYS 12"));
   Serial.println(F("BINARY_KEY SPACE|1|2"));
+  Serial.println(F("GRIP THRESH <n>"));
+  Serial.println(F("GRIP CAL"));
   Serial.println(F("SAVE  DUMP  PLOT 0|1  HELP"));
 }
 
@@ -365,6 +568,82 @@ void finishCal() {
   Serial.println("}");
 }
 
+void doTare() {
+  if (settings.mode == StickMode::Load && nau_ok) {
+    int64_t acc = 0;
+    for (int i = 0; i < 16; ++i) {
+      while (!nau.available()) {
+        delay(2);
+      }
+      acc += nau.read();
+    }
+    settings.load_tare = static_cast<int32_t>(acc / 16);
+    load_filt.set(0);
+  } else {
+    int64_t acc = 0;
+    const uint32_t start = millis();
+    int n = 0;
+    while (millis() - start < kTareWindowMs) {
+      acc += analogRead(PIN_ADC_SENSOR);
+      n++;
+      delay(5);
+    }
+    settings.tare_adc = static_cast<int32_t>(acc / max(n, 1));
+    adc_filt.set(static_cast<float>(settings.tare_adc));
+  }
+  Serial.println(F("{\"tare\":true}"));
+  persist(false);
+  dumpJson();
+}
+
+void doCalToggle() {
+  if (!cal_collecting) {
+    handleLine(analog_hard_held ? String("CAL START HARD") : String("CAL START SOFT"));
+  } else {
+    handleLine("CAL STOP");
+  }
+}
+
+void simulateLevel(bool hard) {
+  sim_soft = !hard;
+  sim_hard = hard;
+  sim_until_ms = millis() + kSimPulseMs;
+}
+
+void bootHoldAction() {
+  if (cal_collecting || analog_soft_held || analog_hard_held) {
+    doCalToggle();
+  } else {
+    doTare();
+  }
+}
+
+void pollBoot(uint32_t now) {
+  const bool down = deb_boot.update(digitalRead(PIN_BTN_BOOT) == LOW, now);
+  if (down && !boot_was) {
+    boot_down_ms = now;
+    boot_held_fired = false;
+  }
+  if (down && !boot_held_fired && (now - boot_down_ms) >= kBootHoldMs) {
+    boot_held_fired = true;
+    boot_taps = 0;
+    bootHoldAction();
+  }
+  if (!down && boot_was && !boot_held_fired) {
+    boot_taps++;
+    boot_wait_until = now + kBootTapGapMs;
+  }
+  if (!down && boot_taps > 0 && now >= boot_wait_until) {
+    if (boot_taps == 1) {
+      simulateLevel(false);
+    } else {
+      simulateLevel(true);
+    }
+    boot_taps = 0;
+  }
+  boot_was = down;
+}
+
 void handleLine(const String& line) {
   if (line == "HELP") {
     help();
@@ -379,31 +658,7 @@ void handleLine(const String& line) {
     return;
   }
   if (line == "TARE") {
-    if (settings.mode == StickMode::Load && nau_ok) {
-      int64_t acc = 0;
-      for (int i = 0; i < 16; ++i) {
-        while (!nau.available()) {
-          delay(2);
-        }
-        acc += nau.read();
-      }
-      settings.load_tare = static_cast<int32_t>(acc / 16);
-      load_filt.set(0);
-    } else {
-      int64_t acc = 0;
-      const uint32_t start = millis();
-      int n = 0;
-      while (millis() - start < kTareWindowMs) {
-        acc += analogRead(PIN_ADC_SENSOR);
-        n++;
-        delay(5);
-      }
-      settings.tare_adc = static_cast<int32_t>(acc / max(n, 1));
-      adc_filt.set(static_cast<float>(settings.tare_adc));
-    }
-    Serial.println(F("{\"tare\":true}"));
-    persist(false);
-    dumpJson();
+    doTare();
     return;
   }
   if (line.startsWith("MODE ")) {
@@ -415,6 +670,41 @@ void handleLine(const String& line) {
     Serial.print(F("{\"mode\":\""));
     Serial.print(modeName(settings.mode));
     Serial.println("\"}");
+    return;
+  }
+  if (line.startsWith("PROFILE ")) {
+    HidProfile p = settings.profile;
+    const String name = line.substring(8);
+    if (parseProfile(name.c_str(), &p)) {
+      settings.profile = p;
+      refreshKeys();
+      if (ble.isConnected()) {
+        ble.releaseAll();
+      }
+      persist(false);
+      Serial.print(F("{\"profile\":\""));
+      Serial.print(profileName(settings.profile));
+      Serial.println("\"}");
+    } else {
+      Serial.println(F("{\"err\":\"profile\"}"));
+    }
+    return;
+  }
+  if (line.startsWith("PACK ")) {
+    const int n = line.substring(5).toInt();
+    if (n == 2) {
+      settings.pack = PackType::Cell2;
+    } else if (n == 3) {
+      settings.pack = PackType::Cell3;
+    } else {
+      Serial.println(F("{\"err\":\"pack\"}"));
+      return;
+    }
+    persist(false);
+    last_batt_pct = -1;
+    Serial.print(F("{\"pack\":"));
+    Serial.print(packCells(settings.pack));
+    Serial.println("}");
     return;
   }
   if (line.startsWith("PLOT ")) {
@@ -446,13 +736,51 @@ void handleLine(const String& line) {
   if (line.startsWith("KEYS ") && line.length() >= 7) {
     settings.key_soft = line.charAt(5);
     settings.key_hard = line.charAt(6);
+    settings.profile = HidProfile::Custom;
+    refreshKeys();
     persist(false);
     return;
   }
   if (line.startsWith("BINARY_KEY ")) {
     const String k = line.substring(11);
     settings.key_binary = (k == "SPACE") ? ' ' : k.charAt(0);
+    settings.profile = HidProfile::Custom;
+    refreshKeys();
     persist(false);
+    return;
+  }
+  if (line.startsWith("GRIP THRESH ")) {
+    const int n = line.substring(12).toInt();
+    if (n > 0 && n < 1000) {
+      settings.grip_thresh = static_cast<uint16_t>(n);
+      persist(false);
+      Serial.print(F("{\"grip_thresh\":"));
+      Serial.print(settings.grip_thresh);
+      Serial.println("}");
+    } else {
+      Serial.println(F("{\"err\":\"grip\"}"));
+    }
+    return;
+  }
+  if (line == "GRIP CAL") {
+    uint32_t acc = 0;
+    for (int i = 0; i < 32; ++i) {
+      acc += touchRead(PIN_TOUCH_GRIP);
+      delay(8);
+    }
+    const uint16_t mean = static_cast<uint16_t>(acc / 32);
+    uint16_t th = static_cast<uint16_t>((static_cast<uint32_t>(mean) * 3) / 4);
+    if (th < 8) {
+      th = kGripThreshDefault;
+    }
+    settings.grip_thresh = th;
+    grip_filt.set(static_cast<float>(mean));
+    persist(false);
+    Serial.print(F("{\"grip_cal\":true,\"mean\":"));
+    Serial.print(mean);
+    Serial.print(F(",\"grip_thresh\":"));
+    Serial.print(settings.grip_thresh);
+    Serial.println("}");
     return;
   }
   if (line.startsWith("LUT ")) {
@@ -602,16 +930,34 @@ void setup() {
   pinMode(PIN_APH_BACKUP, INPUT_PULLUP);
   pinMode(PIN_BTN_TARE, INPUT_PULLUP);
   pinMode(PIN_BTN_CAL, INPUT_PULLUP);
+  pinMode(PIN_BTN_BOOT, INPUT_PULLUP);
   pinMode(PIN_LED_SOFT, OUTPUT);
   pinMode(PIN_LED_HARD, OUTPUT);
+  pinMode(PIN_LED_GRIP, OUTPUT);
   pinMode(PIN_JACK_OUT, OUTPUT);
+  digitalWrite(PIN_LED_GRIP, LOW);
   analogReadResolution(12);
   analogSetPinAttenuation(PIN_ADC_SENSOR, ADC_11db);
   analogSetPinAttenuation(PIN_ADC_BATT, ADC_11db);
   analogSetPinAttenuation(PIN_MODULE_ID, ADC_11db);
 
+  ledcSetup(kBuzzerChannel, 2000, 8);
+  ledcAttachPin(PIN_BUZZER, kBuzzerChannel);
+  ledcWriteTone(kBuzzerChannel, 0);
+
+  uint8_t mac[6] = {};
+  esp_read_mac(mac, ESP_MAC_WIFI_STA);
+  snprintf(ble_name, sizeof(ble_name), "Stick-Switch-%02X%02X", mac[4], mac[5]);
+  ble.setName(ble_name);
+
   loadSettings();
   last_batt_mv = readBattMv();
+  if (settings.pack == PackType::Unset) {
+    settings.pack = autoPickPack(last_batt_mv);
+    persist(false);
+  }
+  grip_filt.set(static_cast<float>(touchRead(PIN_TOUCH_GRIP)));
+  pollGrip();
   readModuleId();
   if (last_module_id != ModuleId::Empty) {
     settings.mode = modeFromModuleId(last_module_id);
@@ -626,6 +972,7 @@ void setup() {
   }
 
   ble.begin();
+  earconStartup();
   help();
   dumpJson();
 }
@@ -633,11 +980,27 @@ void setup() {
 void loop() {
   const uint32_t now = millis();
   pollSerial();
+  pollBuzzer(now);
+  pollGrip();
+  pollBoot(now);
 
   if (now - last_batt_ms >= kBattPollMs) {
     last_batt_ms = now;
     last_batt_mv = readBattMv();
+    publishBattery(false);
+    const bool low = battIsLow(last_batt_mv, settings.pack);
+    if (low && !last_batt_low) {
+      earconLowBatt();
+    }
+    last_batt_low = low;
   }
+
+  const bool connected = ble.isConnected();
+  if (connected && !last_ble_connected) {
+    publishBattery(true);
+    earconPaired();
+  }
+  last_ble_connected = connected;
 
   const bool tare_btn = deb_tare.update(digitalRead(PIN_BTN_TARE) == LOW, now);
   static bool tare_was = false;
@@ -649,18 +1012,22 @@ void loop() {
   const bool cal_btn = deb_cal.update(digitalRead(PIN_BTN_CAL) == LOW, now);
   static bool cal_was = false;
   if (cal_btn && !cal_was) {
-    if (!cal_collecting) {
-      handleLine(analog_hard_held ? String("CAL START HARD") : String("CAL START SOFT"));
-    } else {
-      handleLine("CAL STOP");
-    }
+    doCalToggle();
   }
   cal_was = cal_btn;
+
+  if (sim_until_ms != 0 && now >= sim_until_ms) {
+    sim_soft = false;
+    sim_hard = false;
+    sim_until_ms = 0;
+  }
 
   bool soft = false;
   bool hard = false;
   bool aph = false;
   readSoftHard(now, &soft, &hard, &aph);
+  soft = soft || sim_soft;
+  hard = hard || sim_hard;
 
   HidAction action;
   bool jack = false;
@@ -688,6 +1055,8 @@ void loop() {
     Serial.print(F(" s="));
     Serial.print(soft);
     Serial.print(F(" h="));
-    Serial.println(hard);
+    Serial.print(hard);
+    Serial.print(F(" g="));
+    Serial.println(last_grip);
   }
 }

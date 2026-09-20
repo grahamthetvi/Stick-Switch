@@ -6,6 +6,8 @@
 
 struct StickSettings {
   StickMode mode = StickMode::Micro;
+  HidProfile profile = HidProfile::IpadOS;
+  PackType pack = PackType::Unset;
   bool invert_switches = false;
   bool invert_analog = false;
   bool invert_load = false;
@@ -23,4 +25,5 @@ struct StickSettings {
   float load_scale = 1.0f;
   float load_soft_gf = kLoadSoftGf;
   float load_hard_gf = kLoadHardGf;
+  uint16_t grip_thresh = kGripThreshDefault;
 };

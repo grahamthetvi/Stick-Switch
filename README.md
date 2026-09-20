@@ -6,7 +6,7 @@ Student motion: thumb + index **push forward**. Not a 360° wobble.
 
 ## What to print first
 
-Method 3 + APH on GPIO33 is the first classroom experiment. Print:
+Method 3 + APH on GPIO33 is the first classroom experiment. First-kit print list (part, material, and bed orientation):
 
 | Part | Material | Notes |
 | --- | --- | --- |
@@ -17,21 +17,129 @@ Method 3 + APH on GPIO33 is the first classroom experiment. Print:
 | `grip_sleeve` `bellows` `tpu_foot` ×4 | TPU 95A | |
 | `mod3_switch_plate` | PETG | ID resistor **10k** to GND |
 | `mod3_ramp_cam` | PETG | Optional |
+| `aa_2x_shim` | PETG | Only if using a 2x AA holder |
 
 Exploded look: `openscad -D 'part="kit_preview"' cad/stick_switch.scad` (not an STL). Keep APH on GPIO33 the same day.
 
 Later: Method 4b if travel is too small (chassis-mounted TAL220 saddle — it does **not** fit the 40×32 mm pocket). Method 2 if clicks are disliked. Method 4a for software trip points.
 
+## Build
+
+First classroom kit: Method 3 + APH `1-08615-00` on GPIO33. Do these in order. Pin map, netlists, and later methods stay in the sections below.
+
+Build guide on GitHub Pages: <https://grahamthetvi.github.io/Stick-Switch/> (this README). Enable once: **Settings → Pages → Source: GitHub Actions**.
+
+### 1. Print
+
+Print the first-kit table above. PETG 0.20 mm, 5 perimeters, 40% gyroid. TPU 95A for `grip_sleeve`, `bellows`, `tpu_foot`. **`aa_2x_shim` only for a 2x AA holder.** STLs: `cad/stl/` (`bash cad/export_all.sh`).
+
+### 2. Heat-set, hinge, cover
+
+Brass inserts into PETG with a soldering iron. Posts stay hot — burn hazard. Let them cool before handling.
+
+- Cover: 4× short M3 inserts in the corner posts (from the top).
+- Module bay: 4× M2.5 inserts in the pocket floor (34×26 mm).
+- Mount: 1/4-20 insert from the underside **under the stick**, not under the AA well.
+
+Hinge: press one **623ZZ** into each tower (not the rocker). **M3×20** through both. McMaster **9271K22** LH 90° torsion spring on the left-tower 4.4 mm boss. One leg in a preload hole (start at 60°); the other on the rocker. **Do not mix 9271K21 RH.** Spring legs can fly off — eye protection, hold both legs until the cover is on.
+
+Cover screws into the M3 inserts. Cover M3 set-screw is the travel stop (12 mm grip / 14 mm slam). 8.0 mm OD × 140 mm 6061 through `stick_collar`, TPU `grip_sleeve` over the tube, TPU `bellows` into the cover groove. Four TPU feet. P-clip the cord on the +Y inner wall (40 mm loop). 0.4 mm foam on the cover stop. Loctite 222 after a classroom trial, not before.
+
+### 3. Wire Method 3
+
+Gold contacts only — no silver D2F on GPIO. Soft **D2F-01F-D3** → GPIO18. Hard **D2F-01-D3** → GPIO19. COM → GND. NC taped.
+
+```
+D2F-01F-D3 COM → GND
+D2F-01F-D3 NO  → GPIO18 and 1N4148 anode
+D2F-01-D3  COM → GND
+D2F-01-D3  NO  → GPIO19 and 1N4148 anode
+both 1N4148 cathodes → jack Tip
+jack Sleeve → GND
+ID 10k between header pin 8 and GND
+```
+
+Optional LEDs: GPIO25 soft, GPIO26 hard, GPIO16 grip (GPIO → 330 Ω → LED anode; cathode → GND). Optional piezo GPIO13.
+
+### 4. APH backup
+
+APH Adaptable Stick Switch **1-08615-00** on **GPIO33 + GND** the same day. Solder or a flying 3.5 mm TS pigtail (tip → GPIO33, sleeve → GND). The chassis **SJ1-3513N is PowerLink OUTPUT**, not an APH input — do not plug the APH into it.
+
+### 5. Install AA pack
+
+Well **60 × 50 × 18 mm** on −Y. Prefer 3x AA for first kit. AA holder options (pack, Keystone part, Digi-Key SKU, and well fit):
+
+| Pack | Holder | Digi-Key | Fit |
+| --- | --- | --- | --- |
+| 3x AA | Keystone **2465** (6″ leads) or **2464** (PC pins) | `36-2465-ND` / `36-2464-ND` | ~58 × 48 × 17 mm |
+| 2x AA | Keystone **2463** (6″ leads) or **2462** (PC pins) | `36-2463-ND` / `36-2462-ND` | ~58 × 32 × 17 mm; print `aa_2x_shim` into +Y slack |
+
+Snap-on 9V-style Keystone **2475** (3x) / **2474** (2x) also fit; add a 9V snap pigtail. Amazon clones are fine if they measure those envelopes. (Older notes said 2468 / 2466-class — those SKUs are AAA / not this well.)
+
+```
+holder + → SS-12F15 → MT3608 IN
+MT3608 5.0 V → 1N5819/SS14 Schottky → ESP32 VIN
+holder − → GND
+100k / 100k from pack + → GPIO34 → GND
+```
+
+Alkaline AA, polarity as marked on the holder. **No in-chassis charging.** Slide **OFF** while programming (USB 5 V fights VIN if the switch is ON). Serial `PACK 2` or `PACK 3`.
+
+### 6. Connect PowerLink
+
+Same Sky **SJ1-3513N**: tip = NO, sleeve = GND, ring unused. 3.5 mm **TS** cable from this jack into the AbleNet PowerLink **SWITCH** jack. Independent of BLE and of `PROFILE`. Method 3 diode-OR closes the jack with the ESP32 **off**. Analog FET (GPIO27 / 2N7000) needs board power.
+
+### 7. Grip LED (optional)
+
+Isolate the 6061 tube in the PETG `stick_collar`. Run a wire from the tube (collar slot) to GPIO14 (touch T6). LED on GPIO16 only — never HID, never jack. Serial `GRIP CAL` at rest; `GRIP THRESH <n>` if needed.
+
+### 8. Flash
+
+Install [PlatformIO Core](https://docs.platformio.org/en/latest/core/installation/index.html) (or the VS Code PlatformIO IDE). Slide switch OFF.
+
+```
+cd firmware/stick_switch
+pio run -e esp32dev --target upload
+pio device monitor -b 115200
+```
+
+If upload fails: hold **BOOT**, tap EN, release BOOT, retry. Type `HELP` then `DUMP`.
+
+### 9. First boot
+
+Slide ON. Serial:
+
+```
+PACK 3
+PROFILE IPADOS
+```
+
+Use `PACK 2` if the holder is 2x AA. Pair BLE keyboard `Stick-Switch-XXXX` (last two MAC bytes). iPad **Settings → Accessibility → Switch Control → Switches → External**: `1` = Move to Next Item, `2` = Select Item. Chrome calibrator: `tools/calibrate.html` (Web Serial). Method 3 clicks need **no** analog CAL.
+
+### 10. First-kit bench
+
+Same checks as [Bench](#bench-all-methods) below: luggage scale, `PLOT 1`, Notes app `1` then `2`, Method 3 jack continuity with power off.
+
 ## HID / iPad
 
-Pair the ESP32 BLE keyboard named `Stick-Switch`. Then **Settings → Accessibility → Switch Control → Switches → External**:
+Pair the ESP32 BLE keyboard named `Stick-Switch-XXXX` (last two MAC bytes; manufacturer **Graham Labs**). Then **Settings → Accessibility → Switch Control → Switches → External**:
 
 - `1` = Move to Next Item
 - `2` = Select Item
 
-Firmware never holds both keys. Crossing hard **releases `1` and presses `2`**. Easing off hard without a full release stays on `2`. Full release clears keys.
+Firmware never holds both keys. Crossing hard **releases the soft key and presses the hard key**. Easing off hard without a full release stays on hard. Full release clears keys. Profiles change which HID codes those levels send; they do **not** change the jack.
 
-Binary / APH uses Space (existing single-switch mapping). Serial: `MODE BINARY`, `BINARY_KEY SPACE`.
+HID key map by `PROFILE` (soft, hard, and binary/APH):
+
+| `PROFILE` | Soft | Hard | Binary / APH |
+| --- | --- | --- | --- |
+| `IPADOS` (default) | `1` | `2` | Space |
+| `ANDROID` | Tab | Return | Return |
+| `FUNCTION` | F1 | F2 | F3 |
+| `MEDIA` | vol down | vol up | play/pause |
+| `CUSTOM` | NVS `KEYS` / `BINARY_KEY` | | |
+
+Serial: `PROFILE IPADOS`, `MODE BINARY`, `BINARY_KEY SPACE`. `KEYS` / `BINARY_KEY` switch to `CUSTOM` and persist.
 
 ## Firmware
 
@@ -40,7 +148,10 @@ ESP32 DevKit V1 / WROOM, PlatformIO env `esp32dev` (`firmware/stick_switch`). Us
 ```
 cd firmware/stick_switch
 pio run -e esp32dev --target upload
+pio device monitor -b 115200
 ```
+
+If upload fails, hold **BOOT**, tap EN, release BOOT. First-kit procedure: [Build](#build).
 
 Native policy tests (no hardware):
 
@@ -48,25 +159,33 @@ Native policy tests (no hardware):
 make -C firmware/native_test test
 ```
 
-USB serial 115200. `HELP` lists commands. Chrome calibrator: `tools/calibrate.html` (Web Serial). Wizard is Rest/TARE → hold soft/CAL SOFT → hold hard/CAL HARD. `MODE`, `TARE`, `CAL STOP`, `KEYS`, `BINARY_KEY`, `INVERT`, `LUT`, and `SCALE` **auto-save to NVS**. Classroom power-cycle keeps cal. `SAVE` is still an explicit dump confirmation.
+USB serial 115200. `HELP` lists commands. Chrome calibrator: `tools/calibrate.html` (Web Serial). Wizard is Rest/TARE → hold soft/CAL SOFT → hold hard/CAL HARD. `MODE`, `PROFILE`, `PACK`, `TARE`, `CAL STOP`, `KEYS`, `BINARY_KEY`, `INVERT`, `LUT`, `SCALE`, `GRIP THRESH`, and `GRIP CAL` **auto-save to NVS**. Classroom power-cycle keeps cal. `SAVE` is still an explicit dump confirmation.
+
+BOOT button (GPIO0, after setup): 1 tap = simulate soft, 2 taps = simulate hard, hold = TARE (or CAL start/stop if already collecting / analog held). Optional piezo on GPIO13: startup, paired, click, low battery (silent if unpopulated).
+
+ESP32 pin map (GPIO and function):
 
 | GPIO | Function |
 | --- | --- |
+| 0 | BOOT diagnostics (INPUT_PULLUP after setup) |
 | 18 | SW_SOFT (INPUT_PULLUP) |
 | 19 | SW_HARD (INPUT_PULLUP) |
 | 33 | APH backup (INPUT_PULLUP) |
 | 32 | ADC FSR / Hall (ADC1_CH4) |
-| 34 | Battery millivolts (ADC1_CH6), 100k/100k from the cell |
+| 34 | Pack millivolts (ADC1_CH6), 100k/100k from pack + |
 | 35 | Module ID (ADC1_CH7), header pin 8 |
 | 21 / 22 | I2C SDA / SCL (NAU7802) |
 | 4 | TARE |
 | 23 | CAL (reserved; serial is primary) |
 | 25 / 26 | LED soft / hard |
-| 27 | JACK_OUT → 2N7000 gate |
+| 16 | LED grip (indicator only — never HID, never jack) |
+| 27 | JACK_OUT → 2N7000 gate (PowerLink) |
+| 14 | Capacitive grip (T6) on isolated 6061 tube |
+| 13 | Optional piezo earcon |
 
-NVS modes: `MICRO` `FSR` `HALL` `LOAD` `BINARY`. On boot a valid module ID sets the matching mode; serial `MODE` still overrides for this session (and auto-saves). Empty header keeps the NVS mode. `DUMP` JSON includes `mode`, `level`, `batt_mv`, `module_id`, `module_ohms`, and cal fields. Below ~3400 mV the LEDs blink slowly **only while idle** (not during a press).
+NVS modes: `MICRO` `FSR` `HALL` `LOAD` `BINARY`. On boot a valid module ID sets the matching mode; serial `MODE` still overrides for this session (and auto-saves). Empty header keeps the NVS mode. `DUMP` JSON includes `mode`, `profile`, `ble_name`, `level`, `batt_mv`, `batt_pct`, `pack`, `grip`, `module_id`, `module_ohms`, and cal fields. Idle low-batt LED blink follows the selected AA pack curve (≤15%). Grip hold lights GPIO16 only.
 
-Module ID (47k pull-up to 3V3 on the chassis, resistor to GND on the plate):
+Module ID table (plate, resistor to GND, and `module_id`; 47k pull-up to 3V3 on the chassis):
 
 | Plate | Resistor | `module_id` |
 | --- | --- | --- |
@@ -76,28 +195,34 @@ Module ID (47k pull-up to 3V3 on the chassis, resistor to GND on the plate):
 | Method 4b | 100k | `LOAD` |
 | none | open | `EMPTY` |
 
-## 18650 power
+## AA power well and packs
 
-Chassis is **110 × 108 × 32 mm**. Protected 18650 in a Keystone 1043-class holder (~77 × 20.65 × 14.86 mm) sits in a **78 × 22 × 19 mm** well along +X on the −Y side. Charger and boost sit in the corridor south of the left hinge tower; the ESP32 sits in the aisle between the towers so those wells are not filled in by the towers. The 1/4-20 insert stays under the stick, not under the cell. Use a **protected 18650 or** a TP4056 module **with DW01 protection**.
+Chassis is **110 × 108 × 32 mm**. One well on the −Y side, **60 × 50 × 18 mm**, takes a 3x AA holder (Keystone **2465** / **2464**, Digi-Key `36-2465-ND` / `36-2464-ND`, ~58 × 48 × 17 mm). A 2x AA holder (Keystone **2463** / **2462**, `36-2463-ND` / `36-2462-ND`, ~58 × 32 × 17 mm) locates in the same well against −Y; print `aa_2x_shim` into the leftover +Y slack. MT3608 sits +X of the holder. No TP4056 — **do not charge AA cells in the chassis**. The 1/4-20 insert stays under the stick, not under the pack. ESP32 stays in the aisle between the towers.
 
 ```
-18650 in holder → TP4056 B+ / B−
-TP4056 OUT → SS-12F15 slide switch → MT3608 IN
+AA holder (2x or 3x series) → SS-12F15 slide → MT3608 IN
 MT3608 5.0 V → 1N5819/SS14 Schottky → ESP32 VIN
-100k / 100k from TP4056 OUT (cell) → GPIO34 → GND
-Charge: TP4056 USB-C through the rear wall (cover can stay on)
+100k / 100k from pack + → GPIO34 → GND
 Program: ESP32 USB with the slide switch OFF
 ```
 
-If both USBs are live and the switch is ON, 5 V fights at VIN — leave the slide **OFF** while programming. The Schottky stops USB from backfeeding the boost.
+Serial `PACK 2` / `PACK 3` (NVS). Unset pack auto-picks from millivolts on boot (≥3.3 V → 3cell). Curves: 2x empty ~2.0 V full ~3.2 V; 3x empty ~3.0 V full ~4.8 V. BLE HID battery percent and idle low-batt LED use that curve.
 
-Jack honesty: Method 3 **diode-OR still closes the jack with the ESP32 off**. Analog modules (FSR / Hall / 4b) drive the jack with a 2N7000 from GPIO27 — that path **dies with the board**.
+If USB is live and the switch is ON, 5 V fights at VIN — leave the slide **OFF** while programming. The Schottky stops USB from backfeeding the boost.
+
+## PowerLink jack
+
+Same Sky **SJ1-3513N** 3.5 mm TRS, tip = NO, sleeve = GND, ring unused (APH TS plug mates). This is the **PowerLink / wired switch-box output**. It is independent of BLE connection and of `PROFILE`. Method 3 **diode-OR still closes the jack with the ESP32 off**. Analog modules (FSR / Hall / 4b) drive the jack with a 2N7000 from GPIO27 — that path **dies with the board**.
+
+## Grip LED (tube sensor)
+
+Wire the isolated 6061 tube (PETG `stick_collar`) to GPIO14 (touch T6). `touchRead` below the NVS threshold lights GPIO16 only — never HID, never jack. Serial `GRIP THRESH <n>`, `GRIP CAL` (at rest). Fallback: two foil bands on the TPU sleeve, 3.3 V through 1 MΩ, ADC; do not run meaningful current through the student.
 
 ## Shared chassis
 
 OpenSCAD: `cad/stick_switch.scad`. STLs: `cad/stl/` (regenerated from this scad; `part="kit_preview"` is exploded first-print only). Export: `bash cad/export_all.sh`. `base_chassis` may warn “not a valid 2-manifold” in OpenSCAD; it is one solid and slices.
 
-Print PETG, 0.20 mm, 5 perimeters, 40% gyroid, no living hinge as the return spring.
+Print PETG, 0.20 mm, 5 perimeters, 40% gyroid, no living hinge as the return spring. Shared chassis materials for all methods (not the first-kit print list):
 
 | Part | Material |
 | --- | --- |
@@ -111,7 +236,7 @@ Return: McMaster **9271K22** left-hand 90° piano-wire torsion spring (0.281″ 
 
 8-pin module header (rear, pin 1 = 3V3): `3V3, GND, SOFT, HARD, ADC, SDA, SCL, ID`. ID → GPIO35.
 
-Jack: Same Sky **SJ1-3513N**. Tip = NO, Sleeve = GND, Ring unused (APH TS plug mates).
+PowerLink jack: Same Sky **SJ1-3513N**. Tip = NO, Sleeve = GND, Ring unused (APH TS plug mates).
 
 ## Method 3 — staged microswitches (first trial)
 
@@ -183,7 +308,7 @@ NAU VIN→3V3  GND→GND  SDA→GPIO21  SCL→GPIO22
 ID 100k between header pin 8 and GND
 ```
 
-`MODE LOAD`. Soft 120 gf / hard 300 gf / hyst 25 gf until student cal. Quiet slow-tare 1%/3 s only when |g|<15. I2C fail → APH GPIO33 still works. Clone color-code: `INVERT LD 1`. Scale with 500 g on the **grip**: `SCALE <gf_per_count>`. Jack FET is dead when the ESP32 is off.
+`MODE LOAD`. Soft 120 gf / hard 300 gf / hyst 25 gf until student cal. Quiet slow-tare 1%/3 s only when abs(g) < 15. I2C fail → APH GPIO33 still works. Clone color-code: `INVERT LD 1`. Scale with 500 g on the **grip**: `SCALE <gf_per_count>`. Jack FET is dead when the ESP32 is off.
 
 ## Bench (all methods)
 
@@ -200,8 +325,12 @@ Watch: two distinct levels, accidental hard, fatigue, resting on the stick (fals
 
 ## Safety
 
-Bellows over the hinge. Encapsulated magnet only. No loose neodymium. P-clip the cord. Overload posts on 4b. Loctite 222 after classroom trial. Protected cell or protected charger; slide switch off in a bag.
+Bellows over the hinge. Encapsulated magnet only. No loose neodymium. P-clip the cord. Overload posts on 4b. Loctite 222 after classroom trial. Alkaline AA only; polarity as marked; no in-chassis charging. Slide switch off in a bag. Heat-set posts burn. Hold **9271K22** legs until the cover is on (do not mix **9271K21** RH).
 
 ## BOM
 
 Machine-readable list: [`hardware/bom.csv`](hardware/bom.csv).
+
+## GitHub Pages
+
+<https://grahamthetvi.github.io/Stick-Switch/> is this README (one source of truth). Workflow: `.github/workflows/pages.yml`. Enable once: repo **Settings → Pages → Build and deployment → Source: GitHub Actions**.

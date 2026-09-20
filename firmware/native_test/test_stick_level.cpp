@@ -1,3 +1,4 @@
+#include "hid_profile.h"
 #include "stick_level.h"
 
 #include <cstdio>
@@ -112,6 +113,69 @@ static void test_batt_divider() {
   CHECK(mid >= 3290 && mid <= 3310, "mid ~3.3 V cell");
 }
 
+static void test_pack_curves() {
+  CHECK(battPctFromMv(2000, PackType::Cell2) == 0, "2cell empty");
+  CHECK(battPctFromMv(3200, PackType::Cell2) == 100, "2cell full");
+  CHECK(battPctFromMv(2600, PackType::Cell2) == 50, "2cell mid");
+  CHECK(battPctFromMv(3000, PackType::Cell3) == 0, "3cell empty");
+  CHECK(battPctFromMv(4800, PackType::Cell3) == 100, "3cell full");
+  CHECK(battPctFromMv(3900, PackType::Cell3) == 50, "3cell mid");
+  CHECK(battIsLow(2100, PackType::Cell2), "2cell low");
+  CHECK(!battIsLow(3000, PackType::Cell2), "2cell ok");
+  CHECK(battIsLow(3100, PackType::Cell3), "3cell low");
+  CHECK(!battIsLow(4000, PackType::Cell3), "3cell ok");
+  CHECK(autoPickPack(2500) == PackType::Cell2, "auto 2cell");
+  CHECK(autoPickPack(4000) == PackType::Cell3, "auto 3cell");
+  CHECK(packCells(PackType::Cell2) == 2, "cells 2");
+  CHECK(packCells(PackType::Cell3) == 3, "cells 3");
+}
+
+static void test_profiles() {
+  StickSettings s;
+  const HidKeyset ipad = keysetFor(HidProfile::IpadOS, s);
+  CHECK(ipad.soft.kind == HidKeyKind::Keyboard && ipad.soft.kbd == '1', "ipad soft 1");
+  CHECK(ipad.hard.kbd == '2', "ipad hard 2");
+  CHECK(ipad.binary.kbd == ' ', "ipad binary space");
+
+  const HidKeyset andr = keysetFor(HidProfile::Android, s);
+  CHECK(andr.soft.kbd == kHidTab, "android tab");
+  CHECK(andr.hard.kbd == kHidReturn, "android return");
+  CHECK(andr.binary.kbd == kHidReturn, "android binary return");
+
+  const HidKeyset fn = keysetFor(HidProfile::Function, s);
+  CHECK(fn.soft.kbd == kHidF1 && fn.hard.kbd == kHidF2 && fn.binary.kbd == kHidF3, "F1 F2 F3");
+
+  const HidKeyset media = keysetFor(HidProfile::Media, s);
+  CHECK(media.soft.kind == HidKeyKind::Media && media.soft.media0 == kMediaVolDown, "vol down");
+  CHECK(media.hard.media0 == kMediaVolUp, "vol up");
+  CHECK(media.binary.media0 == kMediaPlayPause, "play pause");
+
+  s.key_soft = 'a';
+  s.key_hard = 'b';
+  s.key_binary = 'c';
+  const HidKeyset custom = keysetFor(HidProfile::Custom, s);
+  CHECK(custom.soft.kbd == 'a' && custom.hard.kbd == 'b' && custom.binary.kbd == 'c',
+        "custom uses NVS keys");
+
+  HidProfile p = HidProfile::IpadOS;
+  CHECK(parseProfile("ANDROID", &p) && p == HidProfile::Android, "parse android");
+  CHECK(parseProfile("MEDIA", &p) && p == HidProfile::Media, "parse media");
+  CHECK(!parseProfile("HUB", &p), "reject unknown profile");
+}
+
+static void test_grip_does_not_fire_hid() {
+  CHECK(gripHolding(20, 40), "touch below thresh is hold");
+  CHECK(!gripHolding(70, 40), "idle above thresh");
+  StickMachine m;
+  const bool grip = gripHolding(20, 40);
+  CHECK(grip, "holding");
+  const HidAction a = m.updateDual(false, false);
+  CHECK(a.empty(), "grip is not a StickMachine input");
+  CHECK(m.level() == StickLevel::Idle, "grip never becomes a stick level");
+  const HidAction jack_path = m.updateBinary(false);
+  CHECK(jack_path.empty(), "grip does not close binary/jack HID");
+}
+
 static int adcFromDivider(int r_gnd, int rpu = 47000, int full = 4095) {
   return static_cast<int>((static_cast<long>(full) * r_gnd) / (rpu + r_gnd));
 }
@@ -201,6 +265,9 @@ int main() {
   test_lut();
   test_boxcar();
   test_batt_divider();
+  test_pack_curves();
+  test_profiles();
+  test_grip_does_not_fire_hid();
   test_module_id();
   test_analog_machine_together();
   if (g_fails) {

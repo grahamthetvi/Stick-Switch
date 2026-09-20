@@ -18,8 +18,9 @@ include <lib.scad>
 
 part = "base_chassis"; // see render_part() at bottom
 
-// Packing: 18650 on −Y, charger/boost in the corridor under the left
-// tower, ESP32 in the aisle BETWEEN the towers, module bay +X of ESP32.
+// Packing: 3x AA well on −Y (2x AA uses the same well + printed shim),
+// MT3608 +X of the holder, ESP32 in the aisle BETWEEN the towers,
+// module bay +X of ESP32. No in-chassis charger.
 // tower_off=23 so the inner span (36 mm) clears the 29 mm DevKit.
 base_x = 110;
 base_y = 108;
@@ -51,25 +52,26 @@ insert_1_4_20_h = 10.0;
 esp32 = [55, 29, 13];
 esp32_origin = [wall + 1.5, hinge_y - esp32[1] / 2, wall];
 
-// Keystone 1043-class holder ~77 x 20.65 x 14.86 mm; pocket has 0.4–0.6 mm XY
-// clearance and extra Z so an 18.6 mm protected cell sits fully in the well.
-batt_pocket = [78, 22, 19];
-batt_origin = [11, wall, wall]; // between the −Y cover posts; 78 mm holder fits
-
-// TP4056 USB-C + protection (DW01) ~26 x 17 x 6 mm; USB-C through rear −X wall.
-tp4056 = [26, 17, 6];
-tp_origin = [wall, batt_origin[1] + batt_pocket[1] + 2.5, wall];
+// 3x AA holder (Keystone 2465/2464, ~58 x 48 x 17 mm). Pocket has
+// ~0.8–1.2 mm XY clearance and extra Z so the holder sits fully in the well.
+// A 2x AA holder (Keystone 2463/2462, ~58 x 32 x 17) locates against −Y; print aa_2x_shim
+// into the leftover +Y slack. Same well, no second pocket.
+batt_pocket = [60, 50, 18];
+batt_origin = [11, wall, wall]; // between the −Y cover posts
+aa_2x_w = 32.8;
+aa_shim = [batt_pocket[0] - 0.8, batt_pocket[1] - aa_2x_w, 16];
 
 // MT3608 boost ~36 x 17 x 7 mm, set to 5.0 V, output through Schottky to VIN.
+// Sits +X of the AA well, north of the front-left cover post.
 boost = [36, 17, 7];
-boost_origin = [tp_origin[0] + tp4056[0] + 2, tp_origin[1], wall];
+boost_origin = [batt_origin[0] + batt_pocket[0] + 2, batt_origin[1] + 12, wall];
 
-// SS-12F15 (or similar) on rear wall, between TP4056 USB-C and ESP32 USB.
-sw_y = tp_origin[1] + tp4056[1] + 2.5;
+// SS-12F15 on rear wall, between the AA well and ESP32 USB.
+sw_y = batt_origin[1] + batt_pocket[1] + 2;
 sw_z = 8;
 sw_slot = [10, 5];
 
-// Cover screws in corner posts that do not invade the 18650 well.
+// Cover screws in corner posts that do not invade the AA well.
 cover_x1 = 6;
 cover_x2 = base_x - 6;
 cover_y1 = 6;
@@ -117,17 +119,11 @@ module base_chassis() {
         translate([wall, wall, wall])
           rounded_box([base_x - 2 * wall, base_y - 2 * wall, base_z], 1.2);
 
-        // 18650 + Keystone 1043-class well along X on −Y; 0.6 mm floor recess
+        // 3x AA well along X on −Y; 0.6 mm floor recess. 2x AA uses aa_2x_shim.
         translate([batt_origin[0], batt_origin[1], wall - 0.6])
           cube([batt_pocket[0], batt_pocket[1], batt_pocket[2] + 2]);
 
-        // TP4056 well, USB-C through rear −X so the cover can stay on while charging
-        translate([tp_origin[0], tp_origin[1], wall - 0.4])
-          cube([tp4056[0], tp4056[1], tp4056[2] + 4]);
-        translate([-0.2, tp_origin[1] + tp4056[1] / 2 - 5, wall + 1.2])
-          cube([wall + 3, 10, 5.2]);
-
-        // MT3608 well
+        // MT3608 well, +X of the AA holder (no TP4056 / no in-chassis charging)
         translate([boost_origin[0], boost_origin[1], wall - 0.4])
           cube([boost[0], boost[1], boost[2] + 4]);
 
@@ -158,11 +154,11 @@ module base_chassis() {
           rotate([-90, 0, 0])
             cylinder(h = wall + 6, d = 6.2);
 
-        // P-clip / strain-relief M3 on +Y inner wall (not in the cell well)
+        // P-clip / strain-relief M3 on +Y inner wall (not in the AA well)
         translate([base_x - 10, base_y - wall - 6, -0.1])
           m3_clearance(h = wall + 2);
 
-        // 1/4-20 brass insert, underside under the stick — not under the 18650
+        // 1/4-20 brass insert, underside under the stick — not under the AA pack
         translate([base_x / 2, hinge_y, -0.1])
           cylinder(h = insert_1_4_20_h, d = insert_1_4_20_d);
 
@@ -194,7 +190,7 @@ module base_chassis() {
       translate([module_origin[0], module_origin[1], wall - 0.4])
         cube([module_pocket[0], module_pocket[1], 2.0]);
 
-      // rib between 18650 well and electronics so the cell cannot wander
+      // rib between AA well and electronics so the holder cannot wander +Y
       translate([batt_origin[0], batt_origin[1] + batt_pocket[1] - 0.4, wall - 0.4])
         cube([batt_pocket[0], 2.0, 10.4]);
     }
@@ -218,7 +214,7 @@ module base_chassis() {
       translate([0, 0, base_z - 6])
         m3_insert(h = 6.2);
 
-    // hinge through-holes in the towers only — do not bore the battery well
+    // hinge through-holes in the towers only — do not bore the AA well
     translate([hinge_x, hinge_y - tower_off - tower_w / 2 - 0.2, hinge_z])
       rotate([-90, 0, 0])
         cylinder(h = 2 * tower_off + tower_w + 0.4, d = 3.3);
@@ -283,15 +279,9 @@ module cover_slot() {
     translate([4, hinge_y - 10, -0.1])
       rounded_box([18, 20, cover_z + 1], 1.5);
 
-    // rear-edge notches so USB-C and the slide switch stay reachable with the lid on
-    translate([-0.2, tp_origin[1] + tp4056[1] / 2 - 6, -0.1])
-      cube([7, 12, cover_z + 1]);
+    // rear-edge notch so the slide switch stays reachable with the lid on
     translate([-0.2, sw_y - 1, -0.1])
       cube([7, sw_slot[0] + 2, cover_z + 1]);
-
-    // charge-LED window over the TP4056 (LED sits near the USB-C end)
-    translate([wall + 5, tp_origin[1] + tp4056[1] / 2, -0.1])
-      cylinder(h = cover_z + 1, d = 4.2);
   }
 }
 
@@ -398,6 +388,22 @@ module bellows() {
 module tpu_foot() {
   // Print: large face on the bed. TPU 95A. Need four.
   cylinder(h = 2.2, d = 14);
+}
+
+module aa_2x_shim() {
+  // Print: large face on the bed. PETG. Wedge on the +Y side of the AA well
+  // so a 2x AA holder locates against the −Y wall. Omit when using 3x AA.
+  difference() {
+    rounded_box(aa_shim, 1.0);
+    // finger scoop to pull the shim out
+    translate([aa_shim[0] / 2, aa_shim[1] + 0.2, aa_shim[2] - 4])
+      rotate([90, 0, 0])
+        cylinder(h = 6, d = 10);
+  }
+  // locating ribs that bear on the 2x holder (+Y face of the nest)
+  for (z = [4, 11])
+    translate([-0.6, -1.4, z])
+      cube([aa_shim[0] + 1.2, 1.6, 2.2]);
 }
 
 module magnet_plug() {
@@ -631,6 +637,8 @@ module kit_preview() {
     mod3_switch_plate();
   translate([hinge_x + cam_r, hinge_y, hinge_z + 36])
     mod3_ramp_cam();
+  translate([batt_origin[0] + 0.4, batt_origin[1] + aa_2x_w, base_z + 8])
+    aa_2x_shim();
 }
 
 module render_part() {
@@ -641,6 +649,7 @@ module render_part() {
   else if (part == "grip_sleeve") grip_sleeve();
   else if (part == "bellows") bellows();
   else if (part == "tpu_foot") tpu_foot();
+  else if (part == "aa_2x_shim") aa_2x_shim();
   else if (part == "magnet_plug") magnet_plug();
   else if (part == "mod3_switch_plate") mod3_switch_plate();
   else if (part == "mod3_ramp_cam") mod3_ramp_cam();

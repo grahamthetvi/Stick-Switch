@@ -1,5 +1,7 @@
 #pragma once
 
+#include "config.h"
+
 #include <cstdint>
 
 enum class ModuleId : uint8_t {
@@ -146,12 +148,49 @@ inline bool analogActive(float value, bool currently, float on, float hyst) {
   return value >= on;
 }
 
-// 100k/100k divider from the cell. Approximate; ESP32 ADC is uncalibrated.
+// 100k/100k divider from pack +. Approximate; ESP32 ADC is uncalibrated.
 inline int battMvFromAdc(int adc, int vref_mv = 3300, int full = 4095) {
   if (adc < 0) {
     return 0;
   }
   return static_cast<int>((static_cast<long>(adc) * vref_mv * 2) / full);
+}
+
+inline int packEmptyMv(PackType p) {
+  return p == PackType::Cell3 ? kPack3EmptyMv : kPack2EmptyMv;
+}
+
+inline int packFullMv(PackType p) {
+  return p == PackType::Cell3 ? kPack3FullMv : kPack2FullMv;
+}
+
+inline int battPctFromMv(int mv, PackType p) {
+  const int empty = packEmptyMv(p);
+  const int full = packFullMv(p);
+  if (mv <= empty) {
+    return 0;
+  }
+  if (mv >= full) {
+    return 100;
+  }
+  return (mv - empty) * 100 / (full - empty);
+}
+
+inline bool battIsLow(int mv, PackType p) {
+  return battPctFromMv(mv, p) <= kBattLowPct;
+}
+
+inline PackType autoPickPack(int mv) {
+  return mv >= kPackAuto3Mv ? PackType::Cell3 : PackType::Cell2;
+}
+
+inline uint8_t packCells(PackType p) {
+  return p == PackType::Cell3 ? 3 : 2;
+}
+
+// Capacitive grip: touchRead falls when holding. Never feeds StickMachine.
+inline bool gripHolding(uint16_t raw, uint16_t thresh) {
+  return raw < thresh;
 }
 
 // 47k pull-up to 3V3 on the chassis; module resistor to GND.
