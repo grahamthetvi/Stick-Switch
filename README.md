@@ -27,7 +27,7 @@ Later: Method 4b if travel is too small (chassis-mounted TAL220 saddle — it do
 
 First classroom kit: Method 3 + APH `1-08615-00` on GPIO33. Do these in order. Pin map, netlists, and later methods stay in the sections below.
 
-Build guide on GitHub Pages: <https://grahamthetvi.github.io/Stick-Switch/> (this README). Enable once: **Settings → Pages → Source: GitHub Actions**.
+Web Serial calibrator on GitHub Pages: <https://grahamthetvi.github.io/Stick-Switch/> (this README is the build guide). Enable once: **Settings → Pages → Source: GitHub Actions**.
 
 ### 1. Print
 
@@ -114,7 +114,7 @@ PACK 3
 PROFILE IPADOS
 ```
 
-Use `PACK 2` if the holder is 2x AA. Pair BLE keyboard `Stick-Switch-XXXX` (last two MAC bytes). iPad **Settings → Accessibility → Switch Control → Switches → External**: `1` = Move to Next Item, `2` = Select Item. Chrome calibrator: `tools/calibrate.html` (Web Serial). Method 3 clicks need **no** analog CAL.
+Use `PACK 2` if the holder is 2x AA. Pair BLE keyboard `Stick-Switch-XXXX` (last two MAC bytes). iPad **Settings → Accessibility → Switch Control → Switches → External**: `1` = Move to Next Item, `2` = Select Item. Chrome/Edge calibrator: <https://grahamthetvi.github.io/Stick-Switch/> (`tools/calibrate.html`, Web Serial, 115200). Method 3 clicks need **no** analog CAL.
 
 ### 10. First-kit bench
 
@@ -159,7 +159,7 @@ Native policy tests (no hardware):
 make -C firmware/native_test test
 ```
 
-USB serial 115200. `HELP` lists commands. Chrome calibrator: `tools/calibrate.html` (Web Serial). Wizard is Rest/TARE → hold soft/CAL SOFT → hold hard/CAL HARD. `MODE`, `PROFILE`, `PACK`, `TARE`, `CAL STOP`, `KEYS`, `BINARY_KEY`, `INVERT`, `LUT`, `SCALE`, `GRIP THRESH`, and `GRIP CAL` **auto-save to NVS**. Classroom power-cycle keeps cal. `SAVE` is still an explicit dump confirmation.
+USB serial 115200. `HELP` lists commands. Chrome/Edge calibrator: <https://grahamthetvi.github.io/Stick-Switch/> (same file as `tools/calibrate.html`; Web Serial needs HTTPS or localhost). Wizard is Rest/TARE → hold soft/CAL SOFT → hold hard/CAL HARD. `MODE`, `PROFILE`, `PACK`, `TARE`, `CAL STOP`, `KEYS`, `BINARY_KEY`, `INVERT`, `LUT`, `SCALE`, `GRIP THRESH`, and `GRIP CAL` **auto-save to NVS**. Classroom power-cycle keeps cal. `SAVE` is still an explicit dump confirmation.
 
 BOOT button (GPIO0, after setup): 1 tap = simulate soft, 2 taps = simulate hard, hold = TARE (or CAL start/stop if already collecting / analog held). Optional piezo on GPIO13: startup, paired, click, low battery (silent if unpopulated).
 
@@ -333,4 +333,4 @@ Machine-readable list: [`hardware/bom.csv`](hardware/bom.csv).
 
 ## GitHub Pages
 
-<https://grahamthetvi.github.io/Stick-Switch/> is this README (one source of truth). Workflow: `.github/workflows/pages.yml`. Enable once: repo **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+<https://grahamthetvi.github.io/Stick-Switch/> is the Web Serial calibrator (canonical HTML: `tools/calibrate.html`). This README is the build guide. Workflow `.github/workflows/pages.yml` copies that file to the Pages artifact as `index.html` (static deploy, not Jekyll). Enable once: repo **Settings → Pages → Build and deployment → Source: GitHub Actions**. Use Chrome or Edge; USB serial **115200**. GitHub Pages is HTTPS (required for Web Serial). Safari and Firefox cannot use Web Serial.
