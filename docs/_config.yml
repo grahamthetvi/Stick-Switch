@@ -1,0 +1,12 @@
+title: Stick-Switch
+tagline: Two-level AAC / iPad Switch Control stick
+description: First-kit build guide for the two-level AAC / iPad Switch Control stick.
+lang: en-US
+theme: jekyll-theme-primer
+markdown: kramdown
+kramdown:
+  input: GFM
+  toc_levels: 2..3
+repository: grahamthetvi/Stick-Switch
+# Site body is README.md, concatenated into index.md by .github/workflows/pages.yml.
+# page.title matches site.title so {% seo %} does not announce "Stick-Switch | Stick-Switch".

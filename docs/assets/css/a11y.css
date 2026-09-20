@@ -1,0 +1,50 @@
+/* Skip link and focus restoration on top of jekyll-theme-primer. */
+
+.skip-link {
+  position: absolute;
+  left: 0.75rem;
+  top: 0;
+  z-index: 100;
+  padding: 0.5rem 0.75rem;
+  background: #24292f;
+  color: #ffffff;
+  font-weight: 600;
+  text-decoration: none;
+  border-radius: 0 0 4px 4px;
+  transform: translateY(-120%);
+}
+
+.skip-link:focus,
+.skip-link:focus-visible {
+  transform: translateY(0);
+  outline: 2px solid #0969da;
+  outline-offset: 2px;
+}
+
+#main:focus {
+  outline: none;
+}
+
+.markdown-body .anchor:focus,
+.markdown-body .anchor:focus-visible,
+.markdown-body .anchorjs-link:focus,
+.markdown-body .anchorjs-link:focus-visible {
+  outline: 2px solid #0969da;
+  outline-offset: 2px;
+}
+
+.site-footer {
+  color: #24292f;
+}
+
+.site-footer a:focus,
+.site-footer a:focus-visible,
+.markdown-body a:focus,
+.markdown-body a:focus-visible {
+  outline: 2px solid #0969da;
+  outline-offset: 2px;
+}
+
+nav[aria-label="On this page"] {
+  margin-bottom: 1.5rem;
+}

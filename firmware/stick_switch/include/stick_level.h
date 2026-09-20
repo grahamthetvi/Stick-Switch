@@ -1,6 +1,16 @@
 #pragma once
 
+#include "config.h"
+
 #include <cstdint>
+
+enum class ModuleId : uint8_t {
+  Empty = 0,
+  Micro = 1,
+  Fsr = 2,
+  Hall = 3,
+  Load = 4,
+};
 
 // Soft->hard UPGRADE, never dual-fire, never mid-press downgrade.
 // Idle --soft--> Soft (press 1)
@@ -136,6 +146,102 @@ inline bool analogActive(float value, bool currently, float on, float hyst) {
     return value >= (on - hyst);
   }
   return value >= on;
+}
+
+// 100k/100k divider from pack +. Approximate; ESP32 ADC is uncalibrated.
+inline int battMvFromAdc(int adc, int vref_mv = 3300, int full = 4095) {
+  if (adc < 0) {
+    return 0;
+  }
+  return static_cast<int>((static_cast<long>(adc) * vref_mv * 2) / full);
+}
+
+inline int packEmptyMv(PackType p) {
+  return p == PackType::Cell3 ? kPack3EmptyMv : kPack2EmptyMv;
+}
+
+inline int packFullMv(PackType p) {
+  return p == PackType::Cell3 ? kPack3FullMv : kPack2FullMv;
+}
+
+inline int battPctFromMv(int mv, PackType p) {
+  const int empty = packEmptyMv(p);
+  const int full = packFullMv(p);
+  if (mv <= empty) {
+    return 0;
+  }
+  if (mv >= full) {
+    return 100;
+  }
+  return (mv - empty) * 100 / (full - empty);
+}
+
+inline bool battIsLow(int mv, PackType p) {
+  return battPctFromMv(mv, p) <= kBattLowPct;
+}
+
+inline PackType autoPickPack(int mv) {
+  return mv >= kPackAuto3Mv ? PackType::Cell3 : PackType::Cell2;
+}
+
+inline uint8_t packCells(PackType p) {
+  return p == PackType::Cell3 ? 3 : 2;
+}
+
+// Capacitive grip: touchRead falls when holding. Never feeds StickMachine.
+inline bool gripHolding(uint16_t raw, uint16_t thresh) {
+  return raw < thresh;
+}
+
+// 47k pull-up to 3V3 on the chassis; module resistor to GND.
+// MICRO 10k, FSR 22k, HALL 47k, LOAD 100k, empty = open.
+inline ModuleId decodeModuleId(int adc, int* ohms_out = nullptr, int rpu = 47000,
+                               int full = 4095) {
+  int ohms = -1;
+  if (adc < 1) {
+    ohms = 0;
+  } else if (adc >= full - 8) {
+    ohms = -1;
+  } else {
+    ohms = static_cast<int>((static_cast<long>(rpu) * adc) / (full - adc));
+  }
+  if (ohms_out != nullptr) {
+    *ohms_out = ohms;
+  }
+
+  if (adc >= 3600) {
+    return ModuleId::Empty;
+  }
+  if (ohms < 16000) {
+    return ModuleId::Micro;
+  }
+  if (ohms < 34500) {
+    return ModuleId::Fsr;
+  }
+  if (ohms < 73500) {
+    return ModuleId::Hall;
+  }
+  return ModuleId::Load;
+}
+
+inline const char* moduleIdName(ModuleId id) {
+  switch (id) {
+    case ModuleId::Empty:
+      return "EMPTY";
+    case ModuleId::Micro:
+      return "MICRO";
+    case ModuleId::Fsr:
+      return "FSR";
+    case ModuleId::Hall:
+      return "HALL";
+    case ModuleId::Load:
+      return "LOAD";
+    default: {
+      const ModuleId unused = id;
+      (void)unused;
+      return "EMPTY";
+    }
+  }
 }
 
 // 5-point LUT: adc[i] -> mm[i], both strictly increasing after invert.
