@@ -21,61 +21,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Sync README into docs
+      - name: Stage calibrator as site index
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-
-          readme = Path("README.md").read_text(encoding="utf-8")
-          blob = "https://github.com/grahamthetvi/Stick-Switch/blob/main/"
-
-          def rewrite(match):
-              text, url = match.group(1), match.group(2)
-              if url.startswith(("http://", "https://", "#", "mailto:")):
-                  return match.group(0)
-              return f"[{text}]({blob}{url.lstrip('./')})"
-
-          body = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", rewrite, readme)
-          # After the README h1 so the TOC is not a keyboard wall before the title.
-          # markdown="1" lets kramdown GFM expand {:toc} inside the labelled nav.
-          toc = (
-              "\n"
-              '<nav markdown="1" aria-label="On this page">\n'
-              "\n"
-              "* Contents\n"
-              "{:toc}\n"
-              "\n"
-              "</nav>\n"
-          )
-          if re.search(r"^# .+$", body, flags=re.M):
-              body = re.sub(r"^(# .+)\n", r"\1\n" + toc, body, count=1, flags=re.M)
-          else:
-              body = toc + "\n" + body
-          index_path = Path("docs/index.md")
-          wrapper = index_path.read_text(encoding="utf-8")
-          wrapper = re.sub(
-              r"\nThe GitHub Actions workflow concatenates README.md below this intro so the published site stays in sync.\n?",
-              "\n",
-              wrapper,
-          )
-          index_path.write_text(
-              wrapper.rstrip() + "\n\n" + body,
-              encoding="utf-8",
-          )
-          PY
+          mkdir -p _site
+          cp tools/calibrate.html _site/index.html
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
-      - name: Build with Jekyll
-        uses: actions/jekyll-build-pages@v1
-        with:
-          source: ./docs
-          destination: ./_site
-
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
 
   deploy:
     environment:

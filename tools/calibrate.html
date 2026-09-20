@@ -2,78 +2,295 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Stick-Switch calibrate</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Stick-Switch calibrator</title>
   <style>
-    body { font-family: sans-serif; max-width: 46rem; margin: 2rem auto; }
-    button, select { font-size: 1rem; margin: 0.2rem; }
-    pre { background: #111; color: #9f9; padding: 1rem; min-height: 12rem; overflow: auto; }
-    #readout { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.6rem; margin: 1rem 0; }
-    #readout div { background: #f3f3f3; padding: 0.6rem 0.8rem; }
-    #readout span { display: block; font-size: 0.8rem; color: #555; }
-    #readout b { font-size: 1.15rem; }
-    .wizard { border: 1px solid #ccc; padding: 0.8rem 1rem; margin: 1rem 0; }
+    :root {
+      color-scheme: light;
+    }
+    body {
+      font-family: system-ui, sans-serif;
+      max-width: 46rem;
+      margin: 2rem auto;
+      padding: 0 1rem 2rem;
+      line-height: 1.45;
+      color: #1f2328;
+      background: #fff;
+    }
+    .skip-link {
+      position: absolute;
+      left: 0.75rem;
+      top: 0;
+      z-index: 100;
+      padding: 0.5rem 0.75rem;
+      background: #1f2328;
+      color: #fff;
+      font-weight: 600;
+      text-decoration: none;
+      border-radius: 0 0 4px 4px;
+      transform: translateY(-120%);
+    }
+    .skip-link:focus,
+    .skip-link:focus-visible {
+      transform: translateY(0);
+    }
+    :focus {
+      outline: 2px solid #0969da;
+      outline-offset: 2px;
+    }
+    :focus:not(:focus-visible) {
+      outline: none;
+    }
+    :focus-visible {
+      outline: 2px solid #0969da;
+      outline-offset: 2px;
+    }
+    #main:focus {
+      outline: none;
+    }
+    h1 { font-size: 1.75rem; }
+    h2 { font-size: 1.2rem; margin-top: 0; }
+    section {
+      border: 1px solid #d0d7de;
+      border-radius: 6px;
+      padding: 0.9rem 1rem 1rem;
+      margin: 1rem 0;
+    }
+    fieldset {
+      border: 1px solid #d0d7de;
+      border-radius: 4px;
+      margin: 0.6rem 0 0;
+      padding: 0.6rem 0.8rem 0.8rem;
+    }
+    legend { font-weight: 600; }
+    label {
+      display: inline-block;
+      font-weight: 600;
+      margin: 0.35rem 0.4rem 0.35rem 0;
+    }
+    button, select {
+      font: inherit;
+      font-size: 1rem;
+      margin: 0.2rem 0.25rem 0.2rem 0;
+    }
+    .help { color: #424a53; }
+    .status {
+      font-weight: 600;
+      padding: 0.5rem 0.7rem;
+      background: #f6f8fa;
+      border-left: 4px solid #59636e;
+    }
+    .status[data-state="connected"] {
+      border-left-color: #1a7f37;
+    }
+    .status[data-state="error"] {
+      border-left-color: #cf222e;
+    }
+    .status[data-state="busy"] {
+      border-left-color: #9a6700;
+    }
+    .status-text::before {
+      content: attr(data-label) ": ";
+      font-weight: 700;
+    }
+    #readout {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+      gap: 0.6rem;
+      margin: 0.8rem 0 1rem;
+      padding: 0;
+    }
+    #readout > div {
+      background: #f6f8fa;
+      padding: 0.6rem 0.8rem;
+      margin: 0;
+    }
+    #readout dt {
+      font-size: 0.8rem;
+      color: #424a53;
+      font-weight: 600;
+    }
+    #readout dd {
+      margin: 0.15rem 0 0;
+      font-size: 1.15rem;
+      font-weight: 700;
+    }
     .wizard ol { margin: 0.4rem 0 0.8rem; }
     .step-on { font-weight: 700; }
+    .commands { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+    #log {
+      background: #111;
+      color: #9f9;
+      padding: 1rem;
+      min-height: 12rem;
+      max-height: 22rem;
+      overflow: auto;
+      white-space: pre-wrap;
+    }
+    #log-label { display: block; margin-bottom: 0.35rem; }
   </style>
 </head>
 <body>
-  <h1>Stick-Switch serial calibrate</h1>
-  <p>Chrome/Edge only. Calibration auto-saves to NVS; <code>SAVE</code> is only a confirmation dump. HID keys follow <code>PROFILE</code> (IPADOS default <code>1</code> / <code>2</code>).</p>
-  <p>
-    <button id="connect">Connect</button>
-    <select id="mode">
-      <option>MICRO</option>
-      <option>FSR</option>
-      <option>HALL</option>
-      <option>LOAD</option>
-      <option>BINARY</option>
-    </select>
-    <select id="profile">
-      <option>IPADOS</option>
-      <option>ANDROID</option>
-      <option>FUNCTION</option>
-      <option>MEDIA</option>
-      <option>CUSTOM</option>
-    </select>
-    <select id="pack">
-      <option value="2">PACK 2</option>
-      <option value="3">PACK 3</option>
-    </select>
-    <button data-cmd="TARE">TARE</button>
-    <button data-cmd="CAL START SOFT">CAL SOFT</button>
-    <button data-cmd="CAL START HARD">CAL HARD</button>
-    <button data-cmd="CAL STOP">CAL STOP</button>
-    <button data-cmd="DUMP">DUMP</button>
-    <button data-cmd="SAVE">SAVE</button>
-    <button data-cmd="PLOT 1">PLOT ON</button>
-    <button data-cmd="PLOT 0">PLOT OFF</button>
-  </p>
-  <div id="readout">
-    <div><span>mode</span><b id="r-mode">—</b></div>
-    <div><span>level</span><b id="r-level">—</b></div>
-    <div><span>batt_mv</span><b id="r-batt">—</b></div>
-    <div><span>batt %</span><b id="r-pct">—</b></div>
-    <div><span>pack</span><b id="r-pack">—</b></div>
-    <div><span>profile</span><b id="r-profile">—</b></div>
-    <div><span>grip</span><b id="r-grip">—</b></div>
-    <div><span>module_id</span><b id="r-id">—</b></div>
-  </div>
-  <div class="wizard">
-    <strong>Wizard</strong> (analog modules: FSR / HALL / LOAD)
-    <ol>
-      <li id="w1">Rest the stick, then TARE.</li>
-      <li id="w2">Hold the student’s <em>soft</em> press, start CAL SOFT, then stop.</li>
-      <li id="w3">Hold the student’s <em>hard</em> press, start CAL HARD, then stop.</li>
-    </ol>
-    <button type="button" id="wiz">Start: Rest / TARE</button>
-  </div>
-  <pre id="log"></pre>
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <main id="main" tabindex="-1">
+    <h1>Stick-Switch calibrator</h1>
+    <p>
+      USB serial at <strong>115200</strong> baud. Open this page in <strong>Chrome or Edge</strong>
+      (GitHub Pages is HTTPS, which Web Serial requires). Safari and Firefox cannot use Web Serial.
+    </p>
+    <p class="help">
+      Plug the board in over USB. Slide the power switch <strong>OFF</strong> while programming firmware,
+      then connect here. Calibration auto-saves to NVS; <code>SAVE</code> is only a confirmation dump.
+      HID keys follow <code>PROFILE</code> (iPadOS default <code>1</code> / <code>2</code>).
+    </p>
+    <p>
+      <a href="https://github.com/grahamthetvi/Stick-Switch/blob/main/README.md">Build instructions</a>
+      (GitHub README).
+    </p>
+    <p id="status" class="status" data-state="idle" role="status" aria-live="polite">
+      <span class="status-text" data-label="Connection">Disconnected</span>
+    </p>
+
+    <section aria-labelledby="connect-heading">
+      <h2 id="connect-heading">Connect</h2>
+      <p class="help">Request the USB serial port, then open it at 115200. Disconnect when you unplug the board.</p>
+      <p>
+        <button type="button" id="connect">Connect</button>
+        <button type="button" id="disconnect" disabled>Disconnect</button>
+      </p>
+    </section>
+
+    <section aria-labelledby="pack-heading">
+      <h2 id="pack-heading">Pack and profile</h2>
+      <fieldset>
+        <legend>Device settings</legend>
+        <p>
+          <label for="mode">Sensor mode</label>
+          <select id="mode">
+            <option>MICRO</option>
+            <option>FSR</option>
+            <option>HALL</option>
+            <option>LOAD</option>
+            <option>BINARY</option>
+          </select>
+        </p>
+        <p>
+          <label for="profile">HID profile</label>
+          <select id="profile">
+            <option>IPADOS</option>
+            <option>ANDROID</option>
+            <option>FUNCTION</option>
+            <option>MEDIA</option>
+            <option>CUSTOM</option>
+          </select>
+        </p>
+        <p>
+          <label for="pack">AA pack</label>
+          <select id="pack">
+            <option value="2">PACK 2</option>
+            <option value="3">PACK 3</option>
+          </select>
+        </p>
+      </fieldset>
+    </section>
+
+    <section aria-labelledby="wizard-heading">
+      <h2 id="wizard-heading">Rest, soft, and hard wizard</h2>
+      <p class="help">Analog modules only (FSR / HALL / LOAD). Method 3 mechanical clicks do not need analog CAL.</p>
+      <ol>
+        <li id="w1">Rest the stick, then TARE.</li>
+        <li id="w2">Hold the student’s <em>soft</em> press, start CAL SOFT, then stop.</li>
+        <li id="w3">Hold the student’s <em>hard</em> press, start CAL HARD, then stop.</li>
+      </ol>
+      <p>
+        <button type="button" id="wiz">Start: Rest / TARE</button>
+      </p>
+      <fieldset>
+        <legend>Manual calibration commands</legend>
+        <div class="commands">
+          <button type="button" data-cmd="TARE">TARE</button>
+          <button type="button" data-cmd="CAL START SOFT">CAL SOFT</button>
+          <button type="button" data-cmd="CAL START HARD">CAL HARD</button>
+          <button type="button" data-cmd="CAL STOP">CAL STOP</button>
+          <button type="button" data-cmd="DUMP">DUMP</button>
+          <button type="button" data-cmd="SAVE">SAVE</button>
+          <button type="button" data-cmd="PLOT 1">PLOT ON</button>
+          <button type="button" data-cmd="PLOT 0">PLOT OFF</button>
+        </div>
+      </fieldset>
+    </section>
+
+    <section aria-labelledby="live-heading">
+      <h2 id="live-heading">Live status</h2>
+      <p class="help">Values update from JSON the firmware sends (DUMP and live plot). Connection and errors are also announced above.</p>
+      <dl id="readout">
+        <div>
+          <dt>Mode</dt>
+          <dd id="r-mode">—</dd>
+        </div>
+        <div>
+          <dt>Level</dt>
+          <dd id="r-level">—</dd>
+        </div>
+        <div>
+          <dt>Battery mV</dt>
+          <dd id="r-batt">—</dd>
+        </div>
+        <div>
+          <dt>Battery percent</dt>
+          <dd id="r-pct">—</dd>
+        </div>
+        <div>
+          <dt>Pack</dt>
+          <dd id="r-pack">—</dd>
+        </div>
+        <div>
+          <dt>Profile</dt>
+          <dd id="r-profile">—</dd>
+        </div>
+        <div>
+          <dt>Grip</dt>
+          <dd id="r-grip">—</dd>
+        </div>
+        <div>
+          <dt>Module ID</dt>
+          <dd id="r-id">—</dd>
+        </div>
+      </dl>
+      <label id="log-label" for="log">Serial log</label>
+      <pre id="log" tabindex="0" aria-labelledby="log-label"></pre>
+    </section>
+  </main>
   <script>
-    let port, writer;
+    let port = null;
+    let writer = null;
+    let reader = null;
+    let keepReading = false;
+    let expectDump = false;
     let wiz = 0;
-    const log = (t) => { const el = document.getElementById("log"); el.textContent += t + "\n"; el.scrollTop = el.scrollHeight; };
+    const connectBtn = document.getElementById("connect");
+    const disconnectBtn = document.getElementById("disconnect");
+    const statusEl = document.getElementById("status");
+    const statusText = statusEl.querySelector(".status-text");
+
+    function setStatus(message, state) {
+      statusEl.dataset.state = state || "idle";
+      statusText.textContent = message;
+    }
+
+    function setConnectedUi(connected) {
+      connectBtn.disabled = connected;
+      disconnectBtn.disabled = !connected;
+    }
+
+    const log = (t) => {
+      const el = document.getElementById("log");
+      el.textContent += t + "\n";
+      el.scrollTop = el.scrollHeight;
+    };
     const setText = (id, v) => { document.getElementById(id).textContent = v; };
     const levels = ["Idle", "Soft", "Hard"];
+
     function applyDump(obj) {
       if (obj.mode != null) setText("r-mode", obj.mode);
       if (obj.level != null) setText("r-level", levels[obj.level] || String(obj.level));
@@ -96,7 +313,12 @@
         const ohms = obj.module_ohms != null ? " (" + obj.module_ohms + "Ω)" : "";
         setText("r-id", obj.module_id + ohms);
       }
+      if (expectDump) {
+        expectDump = false;
+        setStatus("DUMP received", "connected");
+      }
     }
+
     function ingest(chunk) {
       for (const line of chunk.split(/\r?\n/)) {
         const t = line.trim();
@@ -107,13 +329,24 @@
         try { applyDump(JSON.parse(t.slice(start))); } catch (e) { /* live plot lines */ }
       }
     }
+
     async function send(line) {
-      if (!writer) { log("not connected"); return; }
+      if (!writer) {
+        setStatus("Not connected. Open a USB serial port first.", "error");
+        log("not connected");
+        return;
+      }
+      if (line === "DUMP" || line === "SAVE") expectDump = true;
       await writer.write(line + "\n");
       log("> " + line);
     }
+
     function markWizard() {
-      for (const id of ["w1", "w2", "w3"]) document.getElementById(id).classList.remove("step-on");
+      for (const id of ["w1", "w2", "w3"]) {
+        const el = document.getElementById(id);
+        el.classList.remove("step-on");
+        el.removeAttribute("aria-current");
+      }
       const labels = [
         "Start: Rest / TARE",
         "Holding soft? CAL SOFT",
@@ -123,47 +356,141 @@
         "Done — DUMP (auto-saved)"
       ];
       document.getElementById("wiz").textContent = labels[wiz] || labels[5];
-      if (wiz >= 1 && wiz <= 2) document.getElementById("w1").classList.add("step-on");
-      else if (wiz >= 3 && wiz <= 4) document.getElementById("w2").classList.add("step-on");
-      else if (wiz >= 5) document.getElementById("w3").classList.add("step-on");
+      if (wiz >= 1 && wiz <= 2) {
+        document.getElementById("w1").classList.add("step-on");
+        document.getElementById("w1").setAttribute("aria-current", "step");
+      } else if (wiz >= 3 && wiz <= 4) {
+        document.getElementById("w2").classList.add("step-on");
+        document.getElementById("w2").setAttribute("aria-current", "step");
+      } else if (wiz >= 5) {
+        document.getElementById("w3").classList.add("step-on");
+        document.getElementById("w3").setAttribute("aria-current", "step");
+      }
     }
+
+    async function closePort() {
+      keepReading = false;
+      try {
+        if (reader) {
+          await reader.cancel();
+          reader = null;
+        }
+      } catch (e) { /* already closed */ }
+      try {
+        if (writer) {
+          writer.releaseLock();
+          writer = null;
+        }
+      } catch (e) { /* already released */ }
+      try {
+        if (port) {
+          await port.close();
+        }
+      } catch (e) { /* already closed */ }
+      port = null;
+      setConnectedUi(false);
+    }
+
     document.getElementById("wiz").onclick = async () => {
-      if (!writer) { log("not connected"); return; }
+      if (!writer) {
+        setStatus("Not connected. Open a USB serial port first.", "error");
+        log("not connected");
+        return;
+      }
       if (wiz === 0) {
         await send("TARE");
         wiz = 2;
         markWizard();
+        setStatus("Calibrating: rest / TARE sent. Next: hold a soft press.", "busy");
         return;
       }
-      if (wiz === 2) { await send("CAL START SOFT"); wiz = 3; markWizard(); return; }
-      if (wiz === 3) { await send("CAL STOP"); wiz = 4; markWizard(); return; }
-      if (wiz === 4) { await send("CAL START HARD"); wiz = 5; markWizard(); return; }
+      if (wiz === 2) {
+        await send("CAL START SOFT");
+        wiz = 3;
+        markWizard();
+        setStatus("Calibrating: collecting soft.", "busy");
+        return;
+      }
+      if (wiz === 3) {
+        await send("CAL STOP");
+        wiz = 4;
+        markWizard();
+        setStatus("Calibrating: soft captured. Next: hold a hard press.", "busy");
+        return;
+      }
+      if (wiz === 4) {
+        await send("CAL START HARD");
+        wiz = 5;
+        markWizard();
+        setStatus("Calibrating: collecting hard.", "busy");
+        return;
+      }
       await send("CAL STOP");
       await send("DUMP");
       wiz = 0;
       markWizard();
+      setStatus("Calibrating: hard captured. Waiting for DUMP.", "busy");
     };
-    document.getElementById("connect").onclick = async () => {
-      port = await navigator.serial.requestPort();
-      await port.open({ baudRate: 115200 });
-      writer = port.writable.getWriter();
-      const dec = new TextDecoderStream();
-      port.readable.pipeTo(dec.writable);
-      const reader = dec.readable.getReader();
-      log("connected");
-      (async () => {
-        for (;;) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          if (value) ingest(value);
+
+    connectBtn.onclick = async () => {
+      if (!("serial" in navigator)) {
+        setStatus("Web Serial is not available. Use Chrome or Edge on HTTPS or localhost.", "error");
+        return;
+      }
+      try {
+        port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 115200 });
+        writer = port.writable.getWriter();
+        keepReading = true;
+        setConnectedUi(true);
+        setStatus("Connected. Port open at 115200 baud.", "connected");
+        log("connected");
+        port.addEventListener("disconnect", async () => {
+          await closePort();
+          setStatus("Disconnected. USB serial port gone.", "idle");
+        });
+        const dec = new TextDecoderStream();
+        port.readable.pipeTo(dec.writable).catch(() => {});
+        reader = dec.readable.getReader();
+        (async () => {
+          try {
+            while (keepReading) {
+              const { value, done } = await reader.read();
+              if (done) break;
+              if (value) ingest(value);
+            }
+          } catch (e) {
+            if (keepReading) {
+              setStatus("Read error: " + (e && e.message ? e.message : String(e)), "error");
+            }
+          }
+        })();
+      } catch (e) {
+        await closePort();
+        if (e && e.name === "NotFoundError") {
+          setStatus("Connect cancelled. No serial port selected.", "idle");
+          return;
         }
-      })();
+        setStatus("Connect error: " + (e && e.message ? e.message : String(e)), "error");
+      }
     };
+
+    disconnectBtn.onclick = async () => {
+      await closePort();
+      setStatus("Disconnected", "idle");
+      log("disconnected");
+    };
+
     document.getElementById("mode").onchange = (e) => send("MODE " + e.target.value);
     document.getElementById("profile").onchange = (e) => send("PROFILE " + e.target.value);
     document.getElementById("pack").onchange = (e) => send("PACK " + e.target.value);
     for (const b of document.querySelectorAll("button[data-cmd]")) {
       b.onclick = () => send(b.getAttribute("data-cmd"));
+    }
+
+    if (!("serial" in navigator)) {
+      connectBtn.disabled = true;
+      setStatus("Web Serial is not available. Use Chrome or Edge on HTTPS or localhost.", "error");
     }
   </script>
 </body>
