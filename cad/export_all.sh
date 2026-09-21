@@ -5,10 +5,10 @@ OUT="$ROOT/stl"
 mkdir -p "$OUT"
 # Printable STLs. kit_preview is an exploded assembly (not exported).
 # First classroom print: base_chassis cover_slot rocker_arm stick_collar
-#   grip_sleeve bellows tpu_foot mod3_switch_plate [mod3_ramp_cam].
+#   grip_sleeve bellows tpu_foot p_clip mod3_switch_plate [mod3_ramp_cam].
 PARTS=(
   base_chassis cover_slot rocker_arm stick_collar
-  grip_sleeve bellows tpu_foot magnet_plug aa_2x_shim
+  grip_sleeve bellows tpu_foot p_clip magnet_plug aa_2x_shim
   mod3_switch_plate mod3_ramp_cam
   mod2_anvil mod2_puck mod2_retainer
   mod4a_hall_tray gap_gauge_2 gap_gauge_3 gap_gauge_4 gap_gauge_5 gap_gauge_6

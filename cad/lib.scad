@@ -48,8 +48,8 @@ module m2_clearance(h = 12) {
   cylinder(h = h, d = 2.2);
 }
 
-module m4_slot(length = 20, h = 12) {
-  slot_xy(length, 4.3, h);
+module m3_slot(length = 20, h = 12) {
+  slot_xy(length, 3.3, h);
 }
 
 module bearing_623zz_seat(depth = 4.2) {

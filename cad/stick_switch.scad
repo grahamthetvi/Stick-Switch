@@ -10,7 +10,7 @@
 //
 // First classroom print (PETG unless noted):
 //   base_chassis, cover_slot, rocker_arm, stick_collar,
-//   grip_sleeve (TPU), bellows (TPU), tpu_foot x4,
+//   grip_sleeve (TPU), bellows (TPU), tpu_foot x4, p_clip,
 //   mod3_switch_plate, optional mod3_ramp_cam.
 // Method 4b is a later chassis-mounted TAL220 saddle — not a 40 mm plate.
 
@@ -77,13 +77,18 @@ cover_x2 = base_x - 6;
 cover_y1 = 6;
 cover_y2 = base_y - 6;
 
+// P-clip M3 through the floor, +Y inner wall, −X of the jack.
+// Clears the SJ1-3513N body and the +X+Y cover post.
+pclip_x = base_x - 38;
+pclip_y = base_y - wall - 6;
+
 // McMaster 9271K22 LH 90° piano-wire torsion spring.
 // 0.281" OD, 0.172" shaft, 0.030" wire, 3.25 coils, 1" legs, 0.67 in·lbf @ 90°.
 spring_shaft_d = 4.4;  // 0.173" printed boss over the M3 hinge pin
 spring_hole_d = 2.0;
 spring_leg_r = 7.5;
 
-// Method 4b later: TAL220 saddle M4 slots under the cam, outside the 40 mm pocket.
+// Method 4b later: TAL220 saddle M3 slots under the cam, outside the 40 mm pocket.
 m4b_cx = hinge_x + cam_r;
 m4b_dx = 24;
 
@@ -155,25 +160,25 @@ module base_chassis() {
             cylinder(h = wall + 6, d = 6.2);
 
         // P-clip / strain-relief M3 on +Y inner wall (not in the AA well)
-        translate([base_x - 10, base_y - wall - 6, -0.1])
+        translate([pclip_x, pclip_y, -0.1])
           m3_clearance(h = wall + 2);
 
         // 1/4-20 brass insert, underside under the stick — not under the AA pack
         translate([base_x / 2, hinge_y, -0.1])
           cylinder(h = insert_1_4_20_h, d = insert_1_4_20_d);
 
-        // 4x M4 tray slots, 20 mm, clear of the battery well
+        // 4x M3 tray slots, 20 mm, clear of the battery well
         for (px = [12, base_x - 12])
           for (py = [batt_origin[1] + batt_pocket[1] + 8, base_y - 10])
             translate([px, py, -0.1])
               rotate([0, 0, 90])
-                m4_slot(length = 20, h = wall + 2);
+                m3_slot(length = 20, h = wall + 2);
 
-        // Method 4b later: M4 slots under the cam, outside the 40 mm pocket
+        // Method 4b later: M3 slots under the cam, outside the 40 mm pocket
         for (dx = [-m4b_dx, m4b_dx])
           translate([m4b_cx + dx, hinge_y, -0.1])
             rotate([0, 0, 90])
-              m4_slot(length = 12, h = wall + 2);
+              m3_slot(length = 12, h = wall + 2);
 
         translate([wall - 0.2, hinge_y + esp32[1] / 2 + 2, wall + 2])
           cube([wall + 1, 8, 6]);
@@ -390,6 +395,38 @@ module tpu_foot() {
   cylinder(h = 2.2, d = 14);
 }
 
+module p_clip() {
+  // Print: pad on the bed. PETG. TPU 95A optional for extra grip.
+  // M3 through the chassis floor hole; nut on the underside.
+  // Hole at origin; loop toward −Y (basin). 7 mm ID for 3.5 mm TS/TRS.
+  // Mouth on +Z so the cord drops in.
+  id = 7.0;
+  th = 2.2;
+  w = 8.0;
+  pad_h = 2.4;
+  cy = -(id / 2 + th + 2.5);
+
+  difference() {
+    union() {
+      hull() {
+        cylinder(h = pad_h, d = 8.0);
+        translate([0, cy, 0])
+          cylinder(h = pad_h, d = w);
+      }
+      translate([0, cy, pad_h + id / 2])
+        rotate([0, 90, 0])
+          cylinder(h = w, d = id + 2 * th, center = true);
+    }
+    translate([0, cy, pad_h + id / 2])
+      rotate([0, 90, 0])
+        cylinder(h = w + 0.4, d = id, center = true);
+    translate([-w / 2 - 0.2, cy - id / 2, pad_h + id / 2])
+      cube([w + 0.4, id, id + th + 1]);
+    translate([0, 0, -0.2])
+      m3_clearance(h = pad_h + id + th + 1);
+  }
+}
+
 module aa_2x_shim() {
   // Print: large face on the bed. PETG. Wedge on the +Y side of the AA well
   // so a 2x AA holder locates against the −Y wall. Omit when using 3x AA.
@@ -567,7 +604,7 @@ module gap_gauge(t = 2) {
 
 // --- Method 4b ---
 // TAL220 is ~55 x 12.7 mm and does not fit the 40 x 32 mm module pocket.
-// This saddle bolts to chassis M4 slots under the cam (later experiment).
+// This saddle bolts to chassis M3 slots under the cam (later experiment).
 
 module mod4b_cell_saddle() {
   // Print: large floor on the bed. ID resistor 100k to GND on the flying header.
@@ -579,10 +616,10 @@ module mod4b_cell_saddle() {
     // TAL220 / YZC-133 well — caliper the cell before locking
     translate([sx / 2, sy / 2, 4])
       cube([56, 13.2, 13], center = true);
-    // M4 holes, 48 mm spacing, match chassis m4b slots under the cam
+    // M3 holes, 48 mm spacing, match chassis m4b slots under the cam
     for (dx = [-m4b_dx, m4b_dx])
       translate([sx / 2 + dx, sy / 2, -0.2])
-        cylinder(h = 12, d = 4.3);
+        m3_clearance(h = 12);
     // overload posts 0.4 mm above rest (printed bosses kept by not cutting here)
     module_header_cut([sx, sy, sz]);
     module_id_cut([sx, sy, sz]);
@@ -639,6 +676,8 @@ module kit_preview() {
     mod3_ramp_cam();
   translate([batt_origin[0] + 0.4, batt_origin[1] + aa_2x_w, base_z + 8])
     aa_2x_shim();
+  translate([pclip_x, pclip_y, base_z + 10])
+    p_clip();
 }
 
 module render_part() {
@@ -649,6 +688,7 @@ module render_part() {
   else if (part == "grip_sleeve") grip_sleeve();
   else if (part == "bellows") bellows();
   else if (part == "tpu_foot") tpu_foot();
+  else if (part == "p_clip") p_clip();
   else if (part == "aa_2x_shim") aa_2x_shim();
   else if (part == "magnet_plug") magnet_plug();
   else if (part == "mod3_switch_plate") mod3_switch_plate();

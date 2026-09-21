@@ -15,6 +15,7 @@ Method 3 + APH on GPIO33 is the first classroom experiment. First-kit print list
 | `rocker_arm` | PETG | Hub face on the bed; bearings are in the towers only |
 | `stick_collar` | PETG | |
 | `grip_sleeve` `bellows` `tpu_foot` ×4 | TPU 95A | |
+| `p_clip` | PETG | Pad on the bed; TPU 95A optional for extra grip |
 | `mod3_switch_plate` | PETG | ID resistor **10k** to GND |
 | `mod3_ramp_cam` | PETG | Optional |
 | `aa_2x_shim` | PETG | Only if using a 2x AA holder |
@@ -38,12 +39,13 @@ Print the first-kit table above. PETG 0.20 mm, 5 perimeters, 40% gyroid. TPU 95A
 Brass inserts into PETG with a soldering iron. Posts stay hot — burn hazard. Let them cool before handling.
 
 - Cover: 4× short M3 inserts in the corner posts (from the top).
-- Module bay: 4× M2.5 inserts in the pocket floor (34×26 mm).
+- Module bay: 4× M2.5 inserts in the pocket floor (34×26 mm) — M3 does not fit the 40×32 mm plate.
 - Mount: 1/4-20 insert from the underside **under the stick**, not under the AA well.
+- Chassis tray and Method 4b: M3 through-slots (3.3 mm). No heat-set. D2F / Hall hardware stays M2.
 
 Hinge: press one **623ZZ** into each tower (not the rocker). **M3×20** through both. McMaster **9271K22** LH 90° torsion spring on the left-tower 4.4 mm boss. One leg in a preload hole (start at 60°); the other on the rocker. **Do not mix 9271K21 RH.** Spring legs can fly off — eye protection, hold both legs until the cover is on.
 
-Cover screws into the M3 inserts. Cover M3 set-screw is the travel stop (12 mm grip / 14 mm slam). 8.0 mm OD × 140 mm 6061 through `stick_collar`, TPU `grip_sleeve` over the tube, TPU `bellows` into the cover groove. Four TPU feet. P-clip the cord on the +Y inner wall (40 mm loop). 0.4 mm foam on the cover stop. Loctite 222 after a classroom trial, not before.
+Cover screws into the M3 inserts. Cover M3 set-screw is the travel stop (12 mm grip / 14 mm slam). 8.0 mm OD × 140 mm 6061 through `stick_collar`, TPU `grip_sleeve` over the tube, TPU `bellows` into the cover groove. Four TPU feet. `p_clip` on the +Y inner wall, −X of the jack: M3 through the clip and floor, nut on the underside, **40 mm** slack loop. 0.4 mm foam on the cover stop. Loctite 222 after a classroom trial, not before.
 
 ### 3. Wire Method 3
 
@@ -226,13 +228,13 @@ Print PETG, 0.20 mm, 5 perimeters, 40% gyroid, no living hinge as the return spr
 
 | Part | Material |
 | --- | --- |
-| `base_chassis` `cover_slot` `rocker_arm` `stick_collar` | PETG |
+| `base_chassis` `cover_slot` `rocker_arm` `stick_collar` `p_clip` | PETG |
 | `grip_sleeve` `bellows` `tpu_foot` (×4) `magnet_plug` | TPU 95A |
 | Module plates | PETG (TPU puck only on Method 2) |
 
-Tolerances: M3 holes 3.3 mm, 623ZZ seats 10.1 mm (`$fn` 72), stick slot 8.4 mm (Y) × 12 mm (X), module pocket 40×32 mm, M2.5 pattern 34×26 mm. Stick: **8.0 mm OD × 140 mm 6061**, grip center **110 mm** from hinge. Cam at **25 mm**. Cover M3 set-screw is the travel stop (12 mm grip / 14 mm slam; **0.4 mm cam** for Method 4b).
+Tolerances: M3 holes and tray slots 3.3 mm, 623ZZ seats 10.1 mm (`$fn` 72), stick slot 8.4 mm (Y) × 12 mm (X), module pocket 40×32 mm, M2.5 pattern 34×26 mm. D2F / Hall stay M2. Stick: **8.0 mm OD × 140 mm 6061**, grip center **110 mm** from hinge. Cam at **25 mm**. Cover M3 set-screw is the travel stop (12 mm grip / 14 mm slam; **0.4 mm cam** for Method 4b).
 
-Return: McMaster **9271K22** left-hand 90° piano-wire torsion spring (0.281″ OD, 0.172″ shaft, 0.030″ wire, 3.25 coils, 1″ legs, 0.67 in·lbf max at 90°). Do not mix **9271K21** RH. Printed 4.4 mm boss on the left tower; preload holes 0/30/60/90° at 7.5 mm radius. Start at 60° (≈0.5 N at the grip); 90° if the stick feels light. Target **0.5–0.7 N** at grip (luggage scale). Hinge: M3×20 + two **623ZZ in the towers**. Side-load is killed by the cover slot. Mount: 1/4-20 insert, 4× M4 slots, Dual Lock SJ3550, TPU feet. Cord: P-clip + 40 mm loop. Pinch: TPU bellows, edges R≥2 mm.
+Return: McMaster **9271K22** left-hand 90° piano-wire torsion spring (0.281″ OD, 0.172″ shaft, 0.030″ wire, 3.25 coils, 1″ legs, 0.67 in·lbf max at 90°). Do not mix **9271K21** RH. Printed 4.4 mm boss on the left tower; preload holes 0/30/60/90° at 7.5 mm radius. Start at 60° (≈0.5 N at the grip); 90° if the stick feels light. Target **0.5–0.7 N** at grip (luggage scale). Hinge: M3×20 + two **623ZZ in the towers**. Side-load is killed by the cover slot. Mount: 1/4-20 insert, 4× M3 tray slots, Dual Lock SJ3550, TPU feet. Cord: printed `p_clip` + 40 mm loop. Pinch: TPU bellows, edges R≥2 mm.
 
 8-pin module header (rear, pin 1 = 3V3): `3V3, GND, SOFT, HARD, ADC, SDA, SCL, ID`. ID → GPIO35.
 
@@ -299,7 +301,7 @@ Sweep grip 0–12 mm; span must be ≥800 counts. Soft 5 mm / hard 11 mm / hyst 
 
 ## Method 4b — load cell (later; near-zero travel)
 
-SparkFun **SEN-13329 TAL220 10 kg** (or YZC-133 5 kg) is **55 × 12.7 mm** and does not fit the 40×32 mm module pocket. `mod4b_cell_saddle` is a **72 × 24 mm** chassis-mounted beam that bolts to the M4 slots under the cam — not a 40 mm plate. Later experiment, not first-print. Adafruit **4538** NAU7802, gain 128, LDO 3.0 V, 80 SPS. `mod4b_ball_anvil`, `feeler_0_4` (0.4 mm **gauge**, not a structural part). Set cover stop to **0.4 mm** cam motion.
+SparkFun **SEN-13329 TAL220 10 kg** (or YZC-133 5 kg) is **55 × 12.7 mm** and does not fit the 40×32 mm module pocket. `mod4b_cell_saddle` is a **72 × 24 mm** chassis-mounted beam that bolts to the M3 slots under the cam — not a 40 mm plate. The TAL220 bar's own holes stay the vendor size (usually M5). Later experiment, not first-print. Adafruit **4538** NAU7802, gain 128, LDO 3.0 V, 80 SPS. `mod4b_ball_anvil`, `feeler_0_4` (0.4 mm **gauge**, not a structural part). Set cover stop to **0.4 mm** cam motion.
 
 ```
 Red → E+   Black → E−   Green → A+   White → A−
@@ -325,7 +327,7 @@ Watch: two distinct levels, accidental hard, fatigue, resting on the stick (fals
 
 ## Safety
 
-Bellows over the hinge. Encapsulated magnet only. No loose neodymium. P-clip the cord. Overload posts on 4b. Loctite 222 after classroom trial. Alkaline AA only; polarity as marked; no in-chassis charging. Slide switch off in a bag. Heat-set posts burn. Hold **9271K22** legs until the cover is on (do not mix **9271K21** RH).
+Bellows over the hinge. Encapsulated magnet only. No loose neodymium. Clip the cord with printed `p_clip` (40 mm loop). Overload posts on 4b. Loctite 222 after classroom trial. Alkaline AA only; polarity as marked; no in-chassis charging. Slide switch off in a bag. Heat-set posts burn. Hold **9271K22** legs until the cover is on (do not mix **9271K21** RH).
 
 ## BOM
 
