@@ -513,7 +513,7 @@ void dumpJson() {
 void help() {
   Serial.println(F("MODE MICRO|FSR|HALL|LOAD|BINARY"));
   Serial.println(F("PROFILE IPADOS|ANDROID|FUNCTION|MEDIA|CUSTOM"));
-  Serial.println(F("PACK 2|3"));
+  Serial.println(F("PACK 2|3|USB"));
   Serial.println(F("TARE"));
   Serial.println(F("CAL START SOFT|HARD"));
   Serial.println(F("CAL STOP"));
@@ -691,10 +691,13 @@ void handleLine(const String& line) {
     return;
   }
   if (line.startsWith("PACK ")) {
-    const int n = line.substring(5).toInt();
-    if (n == 2) {
+    String arg = line.substring(5);
+    arg.trim();
+    if (arg.equalsIgnoreCase("USB") || arg == "0") {
+      settings.pack = PackType::Usb;
+    } else if (arg.toInt() == 2) {
       settings.pack = PackType::Cell2;
-    } else if (n == 3) {
+    } else if (arg.toInt() == 3) {
       settings.pack = PackType::Cell3;
     } else {
       Serial.println(F("{\"err\":\"pack\"}"));

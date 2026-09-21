@@ -224,10 +224,11 @@
           </select>
         </p>
         <p>
-          <label for="pack">AA pack</label>
+          <label for="pack">Power</label>
           <select id="pack">
             <option value="2">PACK 2</option>
             <option value="3">PACK 3</option>
+            <option value="USB">PACK USB</option>
           </select>
         </p>
       </fieldset>
@@ -400,9 +401,14 @@
       if (obj.batt_mv != null) setText("r-batt", String(obj.batt_mv));
       if (obj.batt_pct != null) setText("r-pct", String(obj.batt_pct) + "%");
       if (obj.pack != null) {
-        setText("r-pack", String(obj.pack) + " AA");
         const packEl = document.getElementById("pack");
-        if (String(obj.pack) === "2" || String(obj.pack) === "3") packEl.value = String(obj.pack);
+        if (obj.pack === 0) {
+          setText("r-pack", "USB");
+          packEl.value = "USB";
+        } else {
+          setText("r-pack", String(obj.pack) + " AA");
+          if (String(obj.pack) === "2" || String(obj.pack) === "3") packEl.value = String(obj.pack);
+        }
       }
       if (obj.profile != null) {
         setText("r-profile", obj.profile);
