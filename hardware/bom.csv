@@ -13,7 +13,7 @@ qty,mfr_pn,source,used_on,role
 1,0.4 mm foam pad,Amazon,method3,Cover travel-stop pad
 1,24 AWG stranded hookup wire,Digi-Key,chassis,GPIO power jack APH pigtail
 1,Loctite 222 purple threadlocker,McMaster/Henkel,chassis,After classroom trial (not before)
-1,wire to 6061 stick (PETG collar isolate),chassis,grip,ESP32 touch T6 GPIO14; grip LED GPIO16 only
+1,wire to 6061 stick (PETG collar isolate),Digi-Key,chassis,ESP32 touch T6 GPIO14; grip LED GPIO16 only
 1,47k 1% TH,Digi-Key,chassis,Module ID pull-up GPIO35 to 3V3
 1,10k 1% TH,Digi-Key,method3,Module ID resistor to GND (MICRO)
 1,22k 1% TH,Digi-Key,method2,Module ID resistor to GND (FSR)
@@ -21,7 +21,7 @@ qty,mfr_pn,source,used_on,role
 1,100k 1% TH,Digi-Key,method4b,Module ID resistor to GND (LOAD)
 2,623ZZ,Amazon/AliExpress,chassis,Hinge bearings 3x10x4 mm (towers only)
 1,M3x20 steel shoulder or socket cap,McMaster/Amazon,chassis,Hinge pin
-1,9271K22,McMaster,chassis,LH 90° piano-wire torsion spring (0.281" OD 0.172" shaft 0.030" wire 3.25 coils 1" legs); do not mix 9271K21 RH
+1,9271K22,McMaster,chassis,"LH 90° piano-wire torsion spring (0.281"" OD 0.172"" shaft 0.030"" wire 3.25 coils 1"" legs); do not mix 9271K21 RH"
 1,8.0 mm OD x 1.0 mm wall 6061 tube 140 mm,McMaster,chassis,Pencil-grip stick (touch electrode; PETG collar isolates the grip sleeve)
 1,Same Sky SJ1-3513N,Digi-Key,chassis,PowerLink 3.5 mm TRS jack (tip=NO sleeve=GND)
 1,1/4-20 brass heat-set insert,Amazon,chassis,RAM/Manfrotto mount (not under the pack)
@@ -39,7 +39,7 @@ qty,mfr_pn,source,used_on,role
 1,Adafruit 166 Alpha MF01A-N-221-A01,Adafruit,method2,14.7 mm FSR 0.3-10 N
 2,spare FSR 166 or Interlink 34-00012,Adafruit/Digi-Key,method2,Tail-tear spares
 1,47k 1% resistor,Digi-Key,method2,FSR pulldown
-1,100 nF ceramic,Digi-Key,method2/4a,ADC RC
+1,100 nF ceramic,Digi-Key,analog modules,ADC RC (method 2 FSR / 4a Hall GPIO32)
 1,Honeywell SS49E,Digi-Key/Mouser,method4a,Linear Hall TO-92
 2,6x3 mm N35 disc magnet,K&J/Amazon,method4a,One installed one spare
 1,100 nF Vcc,Digi-Key,method4a,Hall decoupling
