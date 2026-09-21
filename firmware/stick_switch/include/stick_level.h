@@ -165,6 +165,9 @@ inline int packFullMv(PackType p) {
 }
 
 inline int battPctFromMv(int mv, PackType p) {
+  if (p == PackType::Usb) {
+    return 100;
+  }
   const int empty = packEmptyMv(p);
   const int full = packFullMv(p);
   if (mv <= empty) {
@@ -177,6 +180,9 @@ inline int battPctFromMv(int mv, PackType p) {
 }
 
 inline bool battIsLow(int mv, PackType p) {
+  if (p == PackType::Usb) {
+    return false;
+  }
   return battPctFromMv(mv, p) <= kBattLowPct;
 }
 
@@ -185,6 +191,9 @@ inline PackType autoPickPack(int mv) {
 }
 
 inline uint8_t packCells(PackType p) {
+  if (p == PackType::Usb) {
+    return 0;
+  }
   return p == PackType::Cell3 ? 3 : 2;
 }
 

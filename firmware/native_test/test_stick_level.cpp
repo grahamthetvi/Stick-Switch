@@ -128,6 +128,9 @@ static void test_pack_curves() {
   CHECK(autoPickPack(4000) == PackType::Cell3, "auto 3cell");
   CHECK(packCells(PackType::Cell2) == 2, "cells 2");
   CHECK(packCells(PackType::Cell3) == 3, "cells 3");
+  CHECK(packCells(PackType::Usb) == 0, "usb cells");
+  CHECK(battPctFromMv(0, PackType::Usb) == 100, "usb pct");
+  CHECK(!battIsLow(0, PackType::Usb), "usb never low");
 }
 
 static void test_profiles() {

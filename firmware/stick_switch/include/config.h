@@ -12,6 +12,7 @@ enum class StickMode : uint8_t {
 
 enum class PackType : uint8_t {
   Unset = 0,
+  Usb = 1,
   Cell2 = 2,
   Cell3 = 3,
 };

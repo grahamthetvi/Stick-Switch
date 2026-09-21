@@ -82,6 +82,15 @@ cover_y2 = base_y - 6;
 pclip_x = base_x - 38;
 pclip_y = base_y - wall - 6;
 
+// USB-A → Micro-USB power-bank plug. Rear-wall window 18 x 12 mm
+// (molded strain relief; the old 12 x 8 mm cut was too tight).
+usb_cut_y = 18;
+usb_cut_z = 12;
+usb_cut_z0 = wall + 2;
+// Second P-clip for the USB cable, floor just +Y of the DevKit USB.
+usb_pclip_x = wall + 6;
+usb_pclip_y = hinge_y + usb_cut_y / 2 + 1;
+
 // McMaster 9271K22 LH 90° piano-wire torsion spring.
 // 0.281" OD, 0.172" shaft, 0.030" wire, 3.25 coils, 1" legs, 0.67 in·lbf @ 90°.
 spring_shaft_d = 4.4;  // 0.173" printed boss over the M3 hinge pin
@@ -151,8 +160,12 @@ module base_chassis() {
         // ESP32 DevKit tray (USB toward −X / rear)
         translate([esp32_origin[0], esp32_origin[1], wall - 0.4])
           cube([esp32[0], esp32[1], esp32[2] + 6]);
-        translate([-0.2, hinge_y - 6, wall + 2])
-          cube([wall + 2, 12, 8]);
+        translate([-0.2, hinge_y - usb_cut_y / 2, usb_cut_z0])
+          cube([wall + 6, usb_cut_y, usb_cut_z]);
+
+        // USB-cable P-clip, −X inner floor, +Y of the USB window
+        translate([usb_pclip_x, usb_pclip_y, -0.1])
+          m3_clearance(h = wall + 2);
 
         // 3.5 mm jack well (SJ1-3513N), +Y wall, tip toward outside
         translate([base_x - 22, base_y - wall - 0.2, 8])
@@ -283,6 +296,10 @@ module cover_slot() {
     // access window over ESP32 USB / EN
     translate([4, hinge_y - 10, -0.1])
       rounded_box([18, 20, cover_z + 1], 1.5);
+
+    // rear-edge U-notch so a power-bank Micro-USB plug clears the lid lip
+    translate([-0.2, hinge_y - usb_cut_y / 2, -0.1])
+      cube([8, usb_cut_y, cover_z + 1]);
 
     // rear-edge notch so the slide switch stays reachable with the lid on
     translate([-0.2, sw_y - 1, -0.1])
@@ -677,6 +694,8 @@ module kit_preview() {
   translate([batt_origin[0] + 0.4, batt_origin[1] + aa_2x_w, base_z + 8])
     aa_2x_shim();
   translate([pclip_x, pclip_y, base_z + 10])
+    p_clip();
+  translate([usb_pclip_x, usb_pclip_y, base_z + 10])
     p_clip();
 }
 
