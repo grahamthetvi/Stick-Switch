@@ -9,7 +9,8 @@ qty,mfr_pn,source,used_on,role
 1,passive piezo 12 mm (optional),Digi-Key,chassis,Earcons on GPIO13; omit for silent
 3,3mm LED + 330R,Digi-Key,chassis,GPIO25 soft / GPIO26 hard / GPIO16 grip (GPIO to R to LED anode; cathode to GND); omit if unused
 1,3.5 mm TS (2-conductor) patch cable 1-2 m,Amazon/AbleNet,powerlink,Chassis SJ1-3513N to AbleNet PowerLink SWITCH jack
-1,nylon P-clip M3 for 4-6 mm cable,McMaster/Amazon,chassis,Strain-relief on +Y inner wall (40 mm loop)
+1,printed p_clip (cad/stl/p_clip.stl),print,chassis,PETG P-clip; M3 through floor on +Y inner wall −X of jack; 40 mm loop
+1,M3x8 or M3x10 + nut,Amazon,chassis,p_clip to chassis floor (nut underside)
 1,0.4 mm foam pad,Amazon,method3,Cover travel-stop pad
 1,24 AWG stranded hookup wire,Digi-Key,chassis,GPIO power jack APH pigtail
 1,Loctite 222 purple threadlocker,McMaster/Henkel,chassis,After classroom trial (not before)
@@ -25,7 +26,7 @@ qty,mfr_pn,source,used_on,role
 1,8.0 mm OD x 1.0 mm wall 6061 tube 140 mm,McMaster,chassis,Pencil-grip stick (touch electrode; PETG collar isolates the grip sleeve)
 1,Same Sky SJ1-3513N,Digi-Key,chassis,PowerLink 3.5 mm TRS jack (tip=NO sleeve=GND)
 1,1/4-20 brass heat-set insert,Amazon,chassis,RAM/Manfrotto mount (not under the pack)
-4,M4 heat-set or slot hardware,Amazon,chassis,Tray slots
+4,M3x10 + nuts (optional),Amazon,chassis,Tray through-slots; Dual Lock / 1/4-20 work without them
 8,M3 heat-set inserts short,Amazon,chassis,Cover + stick pinch
 4,M2.5x8 + inserts,Amazon,module bay,Module screws 34x26 mm
 1,2N7000 N-FET,Digi-Key,analog modules,Jack drive GPIO27
@@ -49,7 +50,7 @@ qty,mfr_pn,source,used_on,role
 1,Adafruit 4538 NAU7802,Adafruit,method4b,24-bit I2C ADC
 1,STEMMA QT / Qwiic cable,Adafruit,method4b,I2C
 1,Ø5 mm steel ball,McMaster,method4b,Anvil
-2,M4x10 locknuts,Amazon,method4b,Saddle to chassis M4 slots under cam
+2,M3x10 locknuts,Amazon,method4b,Saddle to chassis M3 slots under cam
 1,APH 1-08615-00,APH,backup,Existing binary wobble stick
 1,PETG filament,Amazon,print,Structural
 1,TPU 95A filament,Amazon,print,Grip bellows feet puck plug
