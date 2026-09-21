@@ -140,11 +140,13 @@
       (GitHub Pages is HTTPS, which Web Serial requires). Safari and Firefox cannot use Web Serial.
     </p>
     <p class="help">
-      Plug the board in over USB. Slide the power switch <strong>OFF</strong> while programming firmware,
-      then connect here. Calibration auto-saves to NVS; <code>SAVE</code> is only a confirmation dump.
-      HID keys follow <code>PROFILE</code> (iPadOS default <code>1</code> / <code>2</code>).
-      The cable tester checks USB <strong>data</strong> with any browser-visible device; it does not test
-      3.5&nbsp;mm PowerLink / TS cords.
+      Plug the board in over USB (full kit: slide the power switch <strong>OFF</strong> while
+      programming; USB-bank kit has no slide). Then connect here. Wired-only kits have no ESP32 —
+      they do not use this calibrator. Calibration auto-saves to NVS; <code>SAVE</code> is only a
+      confirmation dump. HID keys follow <code>PROFILE</code> (iPadOS default <code>1</code> /
+      <code>2</code>). Set <code>PACK USB</code> when there is no AA pack. The cable tester checks
+      USB <strong>data</strong> with any browser-visible device; it does not test 3.5&nbsp;mm
+      PowerLink / TS cords.
     </p>
     <p>
       <a href="https://github.com/grahamthetvi/Stick-Switch/blob/main/README.md">Build instructions</a>

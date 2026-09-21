@@ -1,6 +1,6 @@
 // Stick-Switch shared single-axis chassis and sensor modules.
 // Generate one STL:  openscad -D 'part="base_chassis"' -o cad/stl/base_chassis.stl cad/stick_switch.scad
-// First-print kit (Method 3 + APH backup): part="kit_preview" for an exploded look.
+// Shared print for all three kits (wired / USB bank / full): part="kit_preview".
 //
 // Coordinate system (base origin = rear-left-bottom of chassis):
 //   +X forward (student push / toward sensor bay)
@@ -8,10 +8,11 @@
 //   +Z up (stick)
 // Hinge axis is +Y through [hinge_x, hinge_y, hinge_z].
 //
-// First classroom print (PETG unless noted):
+// Shared print (PETG unless noted):
 //   base_chassis, cover_slot, rocker_arm, stick_collar,
 //   grip_sleeve (TPU), bellows (TPU), tpu_foot x4, p_clip,
 //   mod3_switch_plate, optional mod3_ramp_cam.
+// USB bank: second p_clip. Full kit: aa_2x_shim only for 2x AA.
 // Method 4b is a later chassis-mounted TAL220 saddle — not a 40 mm plate.
 
 include <lib.scad>
@@ -521,7 +522,7 @@ module mod3_switch_plate() {
 }
 
 module mod3_ramp_cam() {
-  // Print: large 14 x 8 face on the bed. Optional first-print extra.
+  // Print: large 14 x 8 face on the bed. Optional Method 3 extra.
   difference() {
     union() {
       cube([14, 8, 4], center = true);
@@ -672,7 +673,7 @@ module wear_pad() {
 }
 
 module kit_preview() {
-  // Exploded first-print kit. Not exported as an STL.
+  // Exploded shared print (wired / USB bank / full). Not exported as an STL.
   base_chassis();
   translate([0, 0, base_z + 14])
     cover_slot();

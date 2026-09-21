@@ -1,12 +1,26 @@
 # Stick-Switch
 
-Single-axis **forward** pencil-grip stick for two-level AAC / iPad Switch Control. Soft→hard is an **upgrade** (HID `1` then `2`), never a double-select. The APH Adaptable Stick Switch (`1-08615-00`) stays the binary classroom backup.
+Single-axis **forward** pencil-grip stick for two-level AAC / iPad Switch Control. Soft→hard is an **upgrade** (HID `1` then `2`), never a double-select. The APH Adaptable Stick Switch (`1-08615-00`) stays the binary classroom backup on the **full** kit.
 
 Student motion: thumb + index **push forward**. Not a 360° wobble.
 
-## What to print first
+## Kits
 
-Method 3 + APH on GPIO33 is the first classroom experiment. First-kit print list (part, material, and bed orientation):
+Same printed chassis for all three. Sensor methods 2 / 3 / 4a / 4b are modules that drop into that chassis; they are not separate prints.
+
+| Kit | Cost | Power | What you get |
+| --- | --- | --- | --- |
+| **Wired** | Affordable | None | Method 3 D2F clicks + 3.5 mm TS cord. Binary PowerLink / switch-box. |
+| **USB bank** | Affordable | USB power bank → ESP32 | Two-level BLE HID, analog modules, FET jack. No AA / boost. `PACK USB`. |
+| **Full** | Full | 2× or 3× AA + boost | Same as USB bank, self-contained. APH on GPIO33. Classroom default if you want in-chassis power. |
+
+Start **wired** to trial the click feel. Add the ESP32 on USB for two-level HID. Move to **full** when you want the pack inside the box.
+
+Later sensor swaps (same chassis): Method 4b if travel is too small (chassis-mounted TAL220 saddle — it does **not** fit the 40×32 mm pocket). Method 2 if clicks are disliked. Method 4a for software trip points.
+
+## What to print
+
+Shared print list (part, material, and bed orientation). All three kits:
 
 | Part | Material | Notes |
 | --- | --- | --- |
@@ -15,24 +29,18 @@ Method 3 + APH on GPIO33 is the first classroom experiment. First-kit print list
 | `rocker_arm` | PETG | Hub face on the bed; bearings are in the towers only |
 | `stick_collar` | PETG | |
 | `grip_sleeve` `bellows` `tpu_foot` ×4 | TPU 95A | |
-| `p_clip` | PETG | Pad on the bed; TPU 95A optional for extra grip. Print a second for USB-bank cable. |
-| `mod3_switch_plate` | PETG | ID resistor **10k** to GND |
+| `p_clip` | PETG | Pad on the bed; TPU 95A optional for extra grip. Print a **second** for USB-bank cable. |
+| `mod3_switch_plate` | PETG | ID resistor **10k** to GND (skip the resistor on wired-only) |
 | `mod3_ramp_cam` | PETG | Optional |
-| `aa_2x_shim` | PETG | Only if using a 2x AA holder |
+| `aa_2x_shim` | PETG | **Full** kit only, and only if using a 2x AA holder |
 
-Exploded look: `openscad -D 'part="kit_preview"' cad/stick_switch.scad` (not an STL). Keep APH on GPIO33 the same day.
+Exploded look: `openscad -D 'part="kit_preview"' cad/stick_switch.scad` (not an STL).
 
-Later: Method 4b if travel is too small (chassis-mounted TAL220 saddle — it does **not** fit the 40×32 mm pocket). Method 2 if clicks are disliked. Method 4a for software trip points.
+PETG 0.20 mm, 5 perimeters, 40% gyroid. STLs: `cad/stl/` (`bash cad/export_all.sh`).
 
-## Bare-bones
+## Wired (affordable)
 
-Optional low-cost kit: Method 3 clicks + a **3.5 mm TS cord**. No ESP32, AA pack, or boost. Same chassis STLs as the full kit (AA well and ESP32 tray stay empty). Either click closes the cord — **binary** PowerLink / switch-box. Two-level HID / iPad Switch Control needs the USB-bank upgrade below.
-
-### Print
-
-Same mechanical stack as the first-kit table. Skip `aa_2x_shim`. Print a **second** `p_clip` if you will add a USB power bank later.
-
-### Wire (no power)
+Method 3 clicks + a **3.5 mm TS cord**. No ESP32, AA pack, or boost. AA well and ESP32 tray stay empty. Either click closes the cord — **binary** PowerLink / switch-box. Two-level HID needs [USB bank](#usb-bank-affordable) or [Full](#build).
 
 Gold D2Fs. NC taped. Flying cord through the jack hole is cheapest; SJ1-3513N is optional.
 
@@ -45,21 +53,23 @@ D2F-01-D3  NO  → cord tip
 
 `p_clip` on the +Y inner wall, 40 mm loop. Skip ESP32, AA holder, MT3608, slide, ID resistors, 2N7000, APH, module header. Diodes are only needed when GPIO is also attached — if you will drop in an ESP32 later, populate the Method 3 1N4148 diode-OR to the jack now.
 
-### USB power bank (all methods)
+## USB bank (affordable)
 
 Drop the ESP32 into the existing tray. USB-A → Micro-USB through the rear **18 × 12 mm** cut (cover has a matching rear-edge notch). Second `p_clip` on the −X inner floor, +Y of the USB window. User-supplied bank — some banks auto-off at low load; BLE idle usually keeps them awake.
 
 Skip AA, boost, slide, Schottky (USB 5 V on the DevKit already powers analog + the GPIO27 FET jack). Serial `PACK USB` (DUMP `"pack":0`; no low-batt blink). Analog modules use the existing FET jack netlists. Method 3 diode-OR still works with board power off.
 
+Flash and pair as in [Build](#build) steps 8–10, but leave the AA well empty and use `PACK USB` instead of `PACK 3`. No VIN fight (no pack).
+
 ## Build
 
-First classroom kit: Method 3 + APH `1-08615-00` on GPIO33. Do these in order. Pin map, netlists, and later methods stay in the sections below.
+**Full** kit: Method 3 + in-chassis AA + APH `1-08615-00` on GPIO33. Do these in order. Pin map, netlists, and later sensor methods stay in the sections below. Wired and USB-bank kits skip the AA / APH steps.
 
 Web Serial calibrator on GitHub Pages: <https://grahamthetvi.github.io/Stick-Switch/> (this README is the build guide). Enable once: **Settings → Pages → Source: GitHub Actions**.
 
 ### 1. Print
 
-Print the first-kit table above. PETG 0.20 mm, 5 perimeters, 40% gyroid. TPU 95A for `grip_sleeve`, `bellows`, `tpu_foot`. **`aa_2x_shim` only for a 2x AA holder.** STLs: `cad/stl/` (`bash cad/export_all.sh`).
+Print the [shared list](#what-to-print). **`aa_2x_shim` only for a 2x AA holder** on this full kit.
 
 ### 2. Heat-set, hinge, cover
 
@@ -96,7 +106,7 @@ APH Adaptable Stick Switch **1-08615-00** on **GPIO33 + GND** the same day. Sold
 
 ### 5. Install AA pack
 
-Well **60 × 50 × 18 mm** on −Y. Prefer 3x AA for first kit. AA holder options (pack, Keystone part, Digi-Key SKU, and well fit):
+Well **60 × 50 × 18 mm** on −Y. Prefer 3x AA for the full kit. AA holder options (pack, Keystone part, Digi-Key SKU, and well fit):
 
 | Pack | Holder | Digi-Key | Fit |
 | --- | --- | --- | --- |
@@ -112,7 +122,7 @@ holder − → GND
 100k / 100k from pack + → GPIO34 → GND
 ```
 
-Alkaline AA, polarity as marked on the holder. **No in-chassis charging.** Slide **OFF** while programming (USB 5 V fights VIN if the switch is ON). Serial `PACK 2` or `PACK 3`. USB-bank (no AA): `PACK USB` — [Bare-bones](#bare-bones).
+Alkaline AA, polarity as marked on the holder. **No in-chassis charging.** Slide **OFF** while programming (USB 5 V fights VIN if the switch is ON). Serial `PACK 2` or `PACK 3`. No AA: [USB bank](#usb-bank-affordable) and `PACK USB`.
 
 ### 6. Connect PowerLink
 
@@ -145,7 +155,7 @@ PROFILE IPADOS
 
 Use `PACK 2` if the holder is 2x AA. Pair BLE keyboard `Stick-Switch-XXXX` (last two MAC bytes). iPad **Settings → Accessibility → Switch Control → Switches → External**: `1` = Move to Next Item, `2` = Select Item. Chrome/Edge calibrator: <https://grahamthetvi.github.io/Stick-Switch/> (`tools/calibrate.html`, Web Serial, 115200). Method 3 clicks need **no** analog CAL.
 
-### 10. First-kit bench
+### 10. Full-kit bench
 
 Same checks as [Bench](#bench-all-methods) below: luggage scale, `PLOT 1`, Notes app `1` then `2`, Method 3 jack continuity with power off.
 
@@ -180,7 +190,7 @@ pio run -e esp32dev --target upload
 pio device monitor -b 115200
 ```
 
-If upload fails, hold **BOOT**, tap EN, release BOOT. First-kit procedure: [Build](#build).
+If upload fails, hold **BOOT**, tap EN, release BOOT. Full-kit procedure: [Build](#build). USB-bank: [USB bank](#usb-bank-affordable). Wired has no firmware.
 
 Native policy tests (no hardware):
 
@@ -249,9 +259,9 @@ Wire the isolated 6061 tube (PETG `stick_collar`) to GPIO14 (touch T6). `touchRe
 
 ## Shared chassis
 
-OpenSCAD: `cad/stick_switch.scad`. STLs: `cad/stl/` (regenerated from this scad; `part="kit_preview"` is exploded first-print only). Export: `bash cad/export_all.sh`. `base_chassis` may warn “not a valid 2-manifold” in OpenSCAD; it is one solid and slices.
+OpenSCAD: `cad/stick_switch.scad`. STLs: `cad/stl/` (regenerated from this scad; `part="kit_preview"` is exploded shared print only). Export: `bash cad/export_all.sh`. `base_chassis` may warn “not a valid 2-manifold” in OpenSCAD; it is one solid and slices.
 
-Print PETG, 0.20 mm, 5 perimeters, 40% gyroid, no living hinge as the return spring. Shared chassis materials for all methods (not the first-kit print list):
+Print PETG, 0.20 mm, 5 perimeters, 40% gyroid, no living hinge as the return spring. Shared chassis materials for all three kits (not only the [print list](#what-to-print)):
 
 | Part | Material |
 | --- | --- |
@@ -286,7 +296,7 @@ jack Sleeve → GND
 ID 10k between header pin 8 and GND
 ```
 
-Firmware: `MODE MICRO`. 1 kHz poll, 15 ms debounce. HARD if GPIO19 low (even if GPIO18 failed). No downgrade until both high 15 ms. Jack still works with ESP32 **off** (diode-OR). No-ESP32 parallel-to-cord wiring: [Bare-bones](#bare-bones).
+Firmware: `MODE MICRO`. 1 kHz poll, 15 ms debounce. HARD if GPIO19 low (even if GPIO18 failed). No downgrade until both high 15 ms. Jack still works with ESP32 **off** (diode-OR). No-ESP32 parallel-to-cord wiring: [Wired](#wired-affordable).
 
 Do not use silver D2F parts on GPIO.
 
@@ -358,7 +368,7 @@ Bellows over the hinge. Encapsulated magnet only. No loose neodymium. Clip the c
 
 ## BOM
 
-Machine-readable list: [`hardware/bom.csv`](hardware/bom.csv). `used_on` includes `wired` (no-power Method 3 + cord) and `usb_bank` (ESP32 from a USB power bank).
+Machine-readable list: [`hardware/bom.csv`](hardware/bom.csv). `used_on` includes `wired` and `usb_bank` (the two affordable kits) plus `full` for in-chassis AA power. Shared mechanics are tagged `wired` because every kit prints them.
 
 ## GitHub Pages
 
