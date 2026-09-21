@@ -118,6 +118,7 @@
     .wizard ol { margin: 0.4rem 0 0.8rem; }
     .step-on { font-weight: 700; }
     .commands { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+    .cable-actions { display: flex; flex-wrap: wrap; gap: 0.25rem; }
     #log {
       background: #111;
       color: #9f9;
@@ -142,6 +143,8 @@
       Plug the board in over USB. Slide the power switch <strong>OFF</strong> while programming firmware,
       then connect here. Calibration auto-saves to NVS; <code>SAVE</code> is only a confirmation dump.
       HID keys follow <code>PROFILE</code> (iPadOS default <code>1</code> / <code>2</code>).
+      The cable tester checks USB <strong>data</strong> with any browser-visible device; it does not test
+      3.5&nbsp;mm PowerLink / TS cords.
     </p>
     <p>
       <a href="https://github.com/grahamthetvi/Stick-Switch/blob/main/README.md">Build instructions</a>
@@ -158,6 +161,42 @@
         <button type="button" id="connect">Connect</button>
         <button type="button" id="disconnect" disabled>Disconnect</button>
       </p>
+    </section>
+
+    <section aria-labelledby="cable-heading">
+      <h2 id="cable-heading">Cable tester</h2>
+      <p>
+        Plug a <strong>known-working USB device</strong> on the far end of the
+        <strong>cable under test</strong>, then click a button and pick that device in the browser prompt.
+        A keyboard, mouse, gamepad, ESP32, or USB-UART adapter is enough — Stick-Switch is not required.
+      </p>
+      <p class="help" id="cable-limits">
+        This only infers a USB <strong>data</strong> path (D+/D−). Charge-only cables, broken data wires,
+        and “nothing plugged in” all look the same: no device in the picker. Phones often never appear to
+        Web Serial or WebHID. 3.5&nbsp;mm TS / PowerLink cords are not USB — check those with a continuity
+        meter (or a future jack loopback), not this tool.
+      </p>
+      <p id="cable-status" class="status" data-state="idle" role="status" aria-live="polite">
+        <span class="status-text" data-label="Cable test">Not tested yet</span>
+      </p>
+      <fieldset>
+        <legend>Look for a device through this cable</legend>
+        <p class="help" id="cable-api-help">
+          Serial is for ESP32 and USB-UART. HID is the “any device” path (keyboard, mouse, gamepad).
+          WebUSB is optional and Chrome blocks many devices — do not rely on it alone.
+        </p>
+        <div class="cable-actions">
+          <button type="button" id="cable-serial" aria-describedby="cable-limits cable-api-help">
+            Look for serial device
+          </button>
+          <button type="button" id="cable-hid" aria-describedby="cable-limits cable-api-help">
+            Look for HID device
+          </button>
+          <button type="button" id="cable-usb" aria-describedby="cable-limits cable-api-help">
+            Look for USB device
+          </button>
+        </div>
+      </fieldset>
     </section>
 
     <section aria-labelledby="pack-heading">
@@ -268,14 +307,78 @@
     let keepReading = false;
     let expectDump = false;
     let wiz = 0;
+    let cablePassFromCalibrator = false;
     const connectBtn = document.getElementById("connect");
     const disconnectBtn = document.getElementById("disconnect");
     const statusEl = document.getElementById("status");
     const statusText = statusEl.querySelector(".status-text");
+    const cableStatusEl = document.getElementById("cable-status");
+    const cableStatusText = cableStatusEl.querySelector(".status-text");
+    const cableSerialBtn = document.getElementById("cable-serial");
+    const cableHidBtn = document.getElementById("cable-hid");
+    const cableUsbBtn = document.getElementById("cable-usb");
+    const hasSerialApi = "serial" in navigator;
+    const hasHidApi = "hid" in navigator;
+    const hasUsbApi = "usb" in navigator;
 
     function setStatus(message, state) {
       statusEl.dataset.state = state || "idle";
       statusText.textContent = message;
+    }
+
+    function setCableStatus(message, state) {
+      cableStatusEl.dataset.state = state || "idle";
+      cableStatusText.textContent = message;
+    }
+
+    function hexId(n) {
+      if (n == null) return null;
+      return "0x" + n.toString(16).toUpperCase().padStart(4, "0");
+    }
+
+    function serialDeviceName(info) {
+      const vid = hexId(info && info.usbVendorId);
+      const pid = hexId(info && info.usbProductId);
+      if (vid && pid) return "USB serial device (vendor " + vid + ", product " + pid + ")";
+      if (vid) return "USB serial device (vendor " + vid + ")";
+      return "a USB serial device";
+    }
+
+    function hidDeviceName(dev) {
+      const n = dev && dev.productName && String(dev.productName).trim();
+      return n || "an HID device";
+    }
+
+    function usbDeviceName(dev) {
+      const parts = [];
+      if (dev && dev.manufacturerName) parts.push(String(dev.manufacturerName).trim());
+      if (dev && dev.productName) parts.push(String(dev.productName).trim());
+      const n = parts.filter(Boolean).join(" ");
+      return n || "a USB device";
+    }
+
+    function cableCancelMessage() {
+      return "No device selected. This cable may be charge-only or have broken data wires, or nothing is attached / the device is not visible to the browser.";
+    }
+
+    function announceCalibratorCablePass() {
+      cablePassFromCalibrator = true;
+      setCableStatus(
+        "Pass: Stick-Switch is already talking on this USB cable, so it carries data.",
+        "connected"
+      );
+    }
+
+    function applyCableApiAvailability() {
+      cableSerialBtn.disabled = !hasSerialApi;
+      cableHidBtn.disabled = !hasHidApi;
+      cableUsbBtn.disabled = !hasUsbApi;
+      if (!hasSerialApi && !hasHidApi && !hasUsbApi) {
+        setCableStatus(
+          "This browser cannot look for USB devices. Safari and Firefox do not support Web Serial, WebHID, or WebUSB. Use Chrome or Edge on HTTPS or localhost.",
+          "error"
+        );
+      }
     }
 
     function setConnectedUi(connected) {
@@ -444,10 +547,15 @@
         keepReading = true;
         setConnectedUi(true);
         setStatus("Connected. Port open at 115200 baud.", "connected");
+        announceCalibratorCablePass();
         log("connected");
         port.addEventListener("disconnect", async () => {
           await closePort();
           setStatus("Disconnected. USB serial port gone.", "idle");
+          if (cablePassFromCalibrator) {
+            cablePassFromCalibrator = false;
+            setCableStatus("Not tested yet. Stick-Switch disconnected.", "idle");
+          }
         });
         const dec = new TextDecoderStream();
         port.readable.pipeTo(dec.writable).catch(() => {});
@@ -479,6 +587,10 @@
       await closePort();
       setStatus("Disconnected", "idle");
       log("disconnected");
+      if (cablePassFromCalibrator) {
+        cablePassFromCalibrator = false;
+        setCableStatus("Not tested yet. Stick-Switch disconnected.", "idle");
+      }
     };
 
     document.getElementById("mode").onchange = (e) => send("MODE " + e.target.value);
@@ -487,6 +599,86 @@
     for (const b of document.querySelectorAll("button[data-cmd]")) {
       b.onclick = () => send(b.getAttribute("data-cmd"));
     }
+
+    cableSerialBtn.onclick = async () => {
+      if (port) {
+        announceCalibratorCablePass();
+        return;
+      }
+      if (!hasSerialApi) {
+        setCableStatus(
+          "Web Serial is not available. Use Chrome or Edge on HTTPS or localhost, or try HID if that button is enabled.",
+          "error"
+        );
+        return;
+      }
+      try {
+        const testPort = await navigator.serial.requestPort();
+        cablePassFromCalibrator = false;
+        setCableStatus(
+          "Pass: found " + serialDeviceName(testPort.getInfo()) + ". This cable carries USB data.",
+          "connected"
+        );
+      } catch (e) {
+        if (e && e.name === "NotFoundError") {
+          setCableStatus(cableCancelMessage(), "error");
+          return;
+        }
+        setCableStatus("Serial lookup error: " + (e && e.message ? e.message : String(e)), "error");
+      }
+    };
+
+    cableHidBtn.onclick = async () => {
+      if (!hasHidApi) {
+        setCableStatus(
+          "WebHID is not available. Use Chrome or Edge on HTTPS or localhost, or try serial if that button is enabled.",
+          "error"
+        );
+        return;
+      }
+      try {
+        const devices = await navigator.hid.requestDevice({ filters: [] });
+        if (!devices || devices.length === 0) {
+          setCableStatus(cableCancelMessage(), "error");
+          return;
+        }
+        cablePassFromCalibrator = false;
+        const names = devices.map(hidDeviceName).join(", ");
+        setCableStatus("Pass: found " + names + ". This cable carries USB data.", "connected");
+      } catch (e) {
+        if (e && e.name === "NotFoundError") {
+          setCableStatus(cableCancelMessage(), "error");
+          return;
+        }
+        setCableStatus("HID lookup error: " + (e && e.message ? e.message : String(e)), "error");
+      }
+    };
+
+    cableUsbBtn.onclick = async () => {
+      if (!hasUsbApi) {
+        setCableStatus(
+          "WebUSB is not available. Use Chrome or Edge, and prefer serial or HID — Chrome blocks many USB devices.",
+          "error"
+        );
+        return;
+      }
+      try {
+        const device = await navigator.usb.requestDevice({ filters: [{}] });
+        cablePassFromCalibrator = false;
+        setCableStatus(
+          "Pass: found " + usbDeviceName(device) + ". This cable carries USB data.",
+          "connected"
+        );
+      } catch (e) {
+        if (e && e.name === "NotFoundError") {
+          setCableStatus(cableCancelMessage(), "error");
+          return;
+        }
+        setCableStatus("USB lookup error: " + (e && e.message ? e.message : String(e)), "error");
+      }
+    };
+
+    applyCableApiAvailability();
 
     if (!("serial" in navigator)) {
       connectBtn.disabled = true;
